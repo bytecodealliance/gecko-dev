@@ -804,6 +804,11 @@ JS_PUBLIC_API void js::RestartDrainingJobQueue(JSContext* cx) {
   cx->internalJobQueue->uninterrupt();
 }
 
+JS_PUBLIC_API bool js::HasJobsPending(JSContext* cx) {
+  MOZ_ASSERT(cx->jobQueue);
+  return !cx->jobQueue->empty();
+}
+
 JS_PUBLIC_API void js::RunJobs(JSContext* cx) {
   MOZ_ASSERT(cx->jobQueue);
   MOZ_ASSERT(cx->isEvaluatingModule == 0);
