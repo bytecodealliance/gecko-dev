@@ -248,6 +248,8 @@ extern JS_PUBLIC_API void StopDrainingJobQueue(JSContext* cx);
 
 extern JS_PUBLIC_API void RunJobs(JSContext* cx);
 
+extern JS_PUBLIC_API bool HasJobsPending(JSContext* cx);
+
 extern JS_PUBLIC_API JS::Zone* GetRealmZone(JS::Realm* realm);
 
 using PreserveWrapperCallback = bool (*)(JSContext*, JS::HandleObject);
