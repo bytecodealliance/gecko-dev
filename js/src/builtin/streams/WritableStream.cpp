@@ -196,7 +196,7 @@ static bool WritableStream_abort(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   // Step 3: Return ! WritableStreamAbort(this, reason).
-  JSObject* promise = WritableStreamAbort(cx, unwrappedStream, args.get(0));
+  JSObject* promise = js::WritableStreamAbort(cx, unwrappedStream, args.get(0));
   if (!promise) {
     return false;
   }

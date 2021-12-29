@@ -119,9 +119,6 @@ static bool ControllerPullFailedHandler(JSContext* cx, unsigned argc,
   return true;
 }
 
-static bool ReadableStreamControllerShouldCallPull(
-    ReadableStreamController* unwrappedController);
-
 /**
  * Streams spec, 3.10.2
  *      ReadableStreamDefaultControllerCallPullIfNeeded ( controller )
@@ -133,7 +130,7 @@ static bool ReadableStreamControllerShouldCallPull(
   // Step 1: Let shouldPull be
   //         ! ReadableStreamDefaultControllerShouldCallPull(controller).
   // (ReadableByteStreamDefaultControllerShouldCallPull in 3.13.3.)
-  bool shouldPull = ReadableStreamControllerShouldCallPull(unwrappedController);
+  bool shouldPull = js::ReadableStreamControllerShouldCallPull(unwrappedController);
 
   // Step 2: If shouldPull is false, return.
   if (!shouldPull) {
@@ -247,7 +244,7 @@ static bool ReadableStreamControllerShouldCallPull(
  * Streams spec, 3.13.25.
  *      ReadableByteStreamControllerShouldCallPull ( controller )
  */
-static bool ReadableStreamControllerShouldCallPull(
+[[nodiscard]] bool js::ReadableStreamControllerShouldCallPull(
     ReadableStreamController* unwrappedController) {
   // Step 1: Let stream be controller.[[controlledReadableStream]]
   //         (or [[controlledReadableByteStream]]).

@@ -225,8 +225,8 @@ static bool ReadableStreamDefaultController_close(JSContext* cx, unsigned argc,
 
   // Step 2: If ! ReadableStreamDefaultControllerCanCloseOrEnqueue(this) is
   //         false, throw a TypeError exception.
-  if (!CheckReadableStreamControllerCanCloseOrEnqueue(cx, unwrappedController,
-                                                      "close")) {
+  if (!js::CheckReadableStreamControllerCanCloseOrEnqueue(cx, unwrappedController,
+                                                          "close")) {
     return false;
   }
 
@@ -256,8 +256,8 @@ static bool ReadableStreamDefaultController_enqueue(JSContext* cx,
 
   // Step 2: If ! ReadableStreamDefaultControllerCanCloseOrEnqueue(this) is
   //         false, throw a TypeError exception.
-  if (!CheckReadableStreamControllerCanCloseOrEnqueue(cx, unwrappedController,
-                                                      "enqueue")) {
+  if (!js::CheckReadableStreamControllerCanCloseOrEnqueue(cx, unwrappedController,
+                                                          "enqueue")) {
     return false;
   }
 

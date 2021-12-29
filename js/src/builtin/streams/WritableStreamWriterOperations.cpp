@@ -67,7 +67,7 @@ JSObject* js::WritableStreamDefaultWriterAbort(
   }
 
   // Step 3: Return ! WritableStreamAbort(stream, reason).
-  return WritableStreamAbort(cx, unwrappedStream, reason);
+  return js::WritableStreamAbort(cx, unwrappedStream, reason);
 }
 
 /**

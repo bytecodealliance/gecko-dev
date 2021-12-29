@@ -202,7 +202,7 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
       Rooted<Value> sourceStoredError(cx, *error.get());
       cx->check(sourceStoredError);
 
-      p = WritableStreamAbort(cx, unwrappedDest, sourceStoredError);
+      p = js::WritableStreamAbort(cx, unwrappedDest, sourceStoredError);
       break;
     }
 

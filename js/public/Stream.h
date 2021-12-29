@@ -223,8 +223,8 @@ extern JS_PUBLIC_API JSObject* NewReadableExternalSourceStreamObject(
  * closed. This is different from ReadableStreamGetReader because we don't
  * have a Promise to resolve/reject, which a reader provides.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  *
  * Asserts that the stream has an embedding-provided underlying source.
  */
@@ -236,13 +236,14 @@ extern JS_PUBLIC_API bool ReadableStreamGetExternalUnderlyingSource(
  * Releases the embedding-provided underlying source of the given |stream|,
  * returning the stream into an unlocked state.
  *
- * Asserts that the stream was locked through
- * ReadableStreamGetExternalUnderlyingSource.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if the stream was locked through
+ * ReadableStreamGetExternalUnderlyingSource and throws an error if not.
  *
- * Asserts that the stream has an embedding-provided underlying source.
+ * Checks if the stream has an embedding-provided underlying source and
+ * throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamReleaseExternalUnderlyingSource(
     JSContext* cx, HandleObject stream);
@@ -255,8 +256,8 @@ extern JS_PUBLIC_API bool ReadableStreamReleaseExternalUnderlyingSource(
  * The JS engine will use the given value to satisfy read requests for the
  * stream by invoking the writeIntoReadRequestBuffer method.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamUpdateDataAvailableFromSource(
     JSContext* cx, HandleObject stream, uint32_t availableData);
@@ -287,6 +288,13 @@ extern JS_PUBLIC_API bool IsReadableStreamReader(JSObject* obj);
  */
 extern JS_PUBLIC_API bool IsReadableStreamDefaultReader(JSObject* obj);
 
+/**
+ * Returns true if the given object is a ReadableStreamDefaultController or
+ * ReadableByteStreamController object or an unwrappable wrapper for one,
+ * false otherwise.
+ */
+extern JS_PUBLIC_API bool IsReadableStreamController(JSObject* obj);
+
 enum class ReadableStreamMode { Default, Byte, ExternalSource };
 
 /**
@@ -294,8 +302,8 @@ enum class ReadableStreamMode { Default, Byte, ExternalSource };
  * |ExternalSource|, it's possible to acquire a BYOB reader for more optimized
  * operations.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamGetMode(JSContext* cx,
                                                 HandleObject stream,
@@ -304,10 +312,18 @@ extern JS_PUBLIC_API bool ReadableStreamGetMode(JSContext* cx,
 enum class ReadableStreamReaderMode { Default, Byob };
 
 /**
- * Returns true if the given ReadableStream is readable, false if not.
+ * Returns the stream's stored error.
  *
  * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
  * for one.
+ */
+extern JS_PUBLIC_API Value ReadableStreamGetStoredError(JSContext* cx, HandleObject stream);
+
+/**
+ * Returns true if the given ReadableStream is readable, false if not.
+ *
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamIsReadable(JSContext* cx,
                                                    HandleObject stream,
@@ -316,8 +332,8 @@ extern JS_PUBLIC_API bool ReadableStreamIsReadable(JSContext* cx,
 /**
  * Returns true if the given ReadableStream is locked, false if not.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamIsLocked(JSContext* cx,
                                                  HandleObject stream,
@@ -326,19 +342,29 @@ extern JS_PUBLIC_API bool ReadableStreamIsLocked(JSContext* cx,
 /**
  * Returns true if the given ReadableStream is disturbed, false if not.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamIsDisturbed(JSContext* cx,
                                                     HandleObject stream,
                                                     bool* result);
 
 /**
+ * Returns true if the given ReadableStream is errored, false if not.
+ *
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
+ */
+extern JS_PUBLIC_API bool ReadableStreamIsErrored(JSContext* cx,
+                                                  HandleObject stream,
+                                                  bool* result);
+
+/**
  * Cancels the given ReadableStream with the given reason and returns a
  * Promise resolved according to the result.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API JSObject* ReadableStreamCancel(JSContext* cx,
                                                     HandleObject stream,
@@ -348,20 +374,65 @@ extern JS_PUBLIC_API JSObject* ReadableStreamCancel(JSContext* cx,
  * Creates a reader of the type specified by the mode option and locks the
  * stream to the new reader.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one. The returned object will always be created in the
- * current cx compartment.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not. The returned object will always be
+ * created in the current cx compartment.
  */
 extern JS_PUBLIC_API JSObject* ReadableStreamGetReader(
     JSContext* cx, HandleObject stream, ReadableStreamReaderMode mode);
+
+/**
+ * Returns the controller associated with the given ReadableStream.
+ *
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
+ */
+extern JS_PUBLIC_API JSObject* ReadableStreamGetController(
+    JSContext* cx, HandleObject stream);
+
+/**
+ * Returns the underlying source associated with the given
+ * ReadableStreamController.
+ *
+ * Checks if |controller| is a ReadableStreamController object or an
+ * unwrappable wrapper for one and throws an error if not. The returned
+ * object will always be created in the current cx compartment.
+ *
+ * Note: this is different from ReadableStreamGetExternalUnderlyingSource in
+ * that it only works for ReadableStreams with a mode of Default or Byte,
+ * returns a Value, and doesn't lock the stream.
+ */
+extern JS_PUBLIC_API bool ReadableStreamControllerGetUnderlyingSource(
+    JSContext* cx, HandleObject controller, MutableHandleValue source);
+
+/**
+ * Results in true if the stream associated with the given controller
+ * is readable, and the closeRequested flag on the controller is false,
+ * and throws an error and returns false if not.
+ *
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
+ */
+extern JS_PUBLIC_API bool CheckReadableStreamControllerCanCloseOrEnqueue(
+    JSContext* cx, HandleObject controller, const char* action);
+
+/**
+ * The WHATWG Streams spec algorithm ReadableStreamControllerShouldCallPull.
+ *
+ * Asserts that |controller| is a ReadableStreamController object or an
+ * unwrappable wrapper for one.
+ */
+extern JS_PUBLIC_API bool ReadableStreamControllerShouldCallPull(
+    JSContext* cx, HandleObject controller);
 
 /**
  * Tees the given ReadableStream and stores the two resulting streams in
  * outparams. Returns false if the operation fails, e.g. because the stream is
  * locked.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not. The returned objects will always be
+ * created in the current cx compartment.
  */
 extern JS_PUBLIC_API bool ReadableStreamTee(JSContext* cx, HandleObject stream,
                                             MutableHandleObject branch1Stream,
@@ -379,8 +450,8 @@ extern JS_PUBLIC_API bool ReadableStreamTee(JSContext* cx, HandleObject stream,
  * the stream controller's prototype in JS. We expose it with the stream
  * itself as a target for simplicity.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamGetDesiredSize(JSContext* cx,
                                                        JSObject* stream,
@@ -395,17 +466,18 @@ extern JS_PUBLIC_API bool ReadableStreamGetDesiredSize(JSContext* cx,
  * circumstances. On failure, the stream may or may not be closed, and
  * downstream consumers may or may not have been notified.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamClose(JSContext* cx,
                                               HandleObject stream);
 
 /**
- * Returns true if the given ReadableStream reader is locked, false otherwise.
+ * Returns true if the given ReadableStream reader is closed, false otherwise.
  *
- * Asserts that |reader| is a ReadableStreamDefaultReader or
- * ReadableStreamBYOBReader object or an unwrappable wrapper for one.
+ * checks |reader| is a ReadableStreamDefaultReader or
+ * ReadableStreamBYOBReader object or an unwrappable wrapper for one and
+ * throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamReaderIsClosed(JSContext* cx,
                                                        HandleObject reader,
@@ -424,8 +496,8 @@ extern JS_PUBLIC_API bool ReadableStreamReaderIsClosed(JSContext* cx,
  * be a typed array or a DataView. Consider using
  * ReadableByteStreamEnqueueBuffer.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamEnqueue(JSContext* cx,
                                                 HandleObject stream,
@@ -441,8 +513,8 @@ extern JS_PUBLIC_API bool ReadableStreamEnqueue(JSContext* cx,
  * the stream controller's prototype in JS. We expose it with the stream
  * itself as a target for simplicity.
  *
- * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
- * for one.
+ * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
+ * for one and throws an error if not.
  */
 extern JS_PUBLIC_API bool ReadableStreamError(JSContext* cx,
                                               HandleObject stream,
@@ -485,6 +557,107 @@ extern JS_PUBLIC_API bool ReadableStreamReaderReleaseLock(JSContext* cx,
  */
 extern JS_PUBLIC_API JSObject* ReadableStreamDefaultReaderRead(
     JSContext* cx, HandleObject reader);
+
+/**
+ * Returns a new instance of the WritableStream builtin class in the current
+ * compartment, configured as a default stream.
+ * If a |proto| is passed, that gets set as the instance's [[Prototype]]
+ * instead of the original value of |WritableStream.prototype|.
+ */
+extern JS_PUBLIC_API JSObject* NewWritableDefaultStreamObject(
+    JSContext* cx, HandleObject underlyingSink = nullptr,
+    HandleFunction size = nullptr, double highWaterMark = 1,
+    HandleObject proto = nullptr);
+
+/**
+ * Returns true if the given object is a WritableStream object or an
+ * unwrappable wrapper for one, false otherwise.
+ */
+extern JS_PUBLIC_API bool IsWritableStream(JSObject* obj);
+
+enum class WritableStreamState {
+    Writable,
+    Closed,
+    Erroring,
+    Errored
+};
+
+/**
+ * Returns the given WritableStream's state.
+ *
+ * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
+ * for one.
+ */
+extern JS_PUBLIC_API WritableStreamState WritableStreamGetState(
+    JSContext* cx, HandleObject stream);
+
+/**
+ * Returns true if the given WritableStream is locked, false if not.
+ *
+ * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
+ * for one.
+ */
+extern JS_PUBLIC_API bool WritableStreamIsLocked(JSContext* cx, HandleObject stream);
+
+/**
+ * Returns true if the given object is a WritableStreamDefaultWriter or
+ * WritableStreamBYOBWriter object or an unwrappable wrapper for one, false
+ * otherwise.
+ */
+extern JS_PUBLIC_API bool IsWritableStreamWriter(JSObject* obj);
+
+/**
+ * Creates a WritableStreamDefaultWriter and locks the stream to the new
+ * writer.
+ *
+ * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
+ * for one. The returned object will always be created in the
+ * current cx compartment.
+ */
+extern JS_PUBLIC_API JSObject* WritableStreamGetWriter(JSContext* cx, HandleObject stream);
+
+/**
+ * Returns the controller associated with the given WritableStream.
+ *
+ * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
+ * for one.
+ */
+extern JS_PUBLIC_API JSObject* WritableStreamGetController(
+    JSContext* cx, HandleObject stream);
+
+/**
+ * Returns the underlying sink associated with the given
+ * WritableStreamDefaultController.
+ *
+ * Asserts that |controller| is a WritableStreamDefaultController object or an
+ * unwrappable wrapper for one.
+ */
+extern JS_PUBLIC_API Value WritableStreamControllerGetUnderlyingSink(
+    JSContext* cx, HandleObject controller);
+
+/**
+ * Errors the given WritableStream, causing all future interactions to fail
+ * with the given error value.
+ *
+ * Throws a TypeError and returns false if the erroring operation fails.
+ *
+ * Note: This is semantically equivalent to the |error| method on
+ * the stream controller's prototype in JS. We expose it with the stream
+ * itself as a target for simplicity.
+ *
+ * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
+ * for one.
+ */
+extern JS_PUBLIC_API bool WritableStreamError(
+    JSContext* cx, HandleObject stream, HandleValue error);
+
+/**
+ * Returns the stream's stored error.
+ *
+ * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
+ * for one.
+ */
+extern JS_PUBLIC_API Value WritableStreamGetStoredError(JSContext* cx, HandleObject stream);
 
 class JS_PUBLIC_API WritableStreamUnderlyingSink {
  public:
