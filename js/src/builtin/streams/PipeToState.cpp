@@ -95,7 +95,7 @@ static WritableStream* GetUnwrappedDest(JSContext* cx,
 
 static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
   return unwrappedDest->writable() &&
-         WritableStreamCloseQueuedOrInFlight(unwrappedDest);
+         !WritableStreamCloseQueuedOrInFlight(unwrappedDest);
 }
 
 [[nodiscard]] static bool Finalize(JSContext* cx, Handle<PipeToState*> state,
@@ -339,6 +339,7 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
   if (!unwrappedDest) {
     return false;
   }
+
   if (WritableAndNotClosing(unwrappedDest)) {
     // Step c.i:  If any chunks have been read but not yet written, write them
     //            to dest.
@@ -582,12 +583,10 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
 
   Rooted<Maybe<Value>> noError(cx, Nothing());
 
-  // It shouldn't be possible for |source| to become closed *during* a pending
-  // read: such spontaneous closure *should* be enqueued for processing *after*
-  // the settling of the pending read.  (Note also that a [[closedPromise]]
-  // resolution in |ReadableStreamClose| occurs only after all pending reads are
-  // resolved.)  So we need not do anything to handle a source closure while a
-  // read is in progress.
+  // While |source| can become closed during a pending read, we guard against
+  // that in the |then| handler for the reader's [[closedPromise]], so all
+  // reads are guaranteed to be done by now.
+  MOZ_ASSERT(!state->hasPendingRead());
 
   // ii. Otherwise (if preventClose is true), shutdown.
   if (state->preventClose()) {
@@ -725,8 +724,17 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
   Rooted<PipeToState*> state(cx, TargetFromHandler<PipeToState>(args));
   cx->check(state);
 
-  if (!OnSourceClosed(cx, state)) {
-    return false;
+  // [[PullSteps]] for ReadableStream controllers is specified to run
+  // |ReadableStreamClose| before processing the passed-in |readRequest|, so
+  // the source's reader's [[closedPromise]] can be resolved before the
+  // promise returned by the last read operation.
+  // In that case, the last read is still pending when we get here, so instead
+  // of running the close operation here, we let |ReadFulfilled| take care of
+  // it.
+  if (!state->hasPendingRead()) {
+    if (!OnSourceClosed(cx, state)) {
+      return false;
+    }
   }
 
   args.rval().setUndefined();
