@@ -445,10 +445,20 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
  * "a. Errors must be propagated forward: if source.[[state]] is or becomes
  * 'errored', then..."
  */
-[[nodiscard]] static bool OnSourceErrored(
-    JSContext* cx, Handle<PipeToState*> state,
-    Handle<ReadableStream*> unwrappedSource) {
+[[nodiscard]] static bool OnSourceErrored(JSContext* cx, Handle<PipeToState*> state) {
   cx->check(state);
+
+  // While Shutdown and ShutdownWithAction return early if shuttingDown is
+  // true, the unwrapping operation below would fail because the source has
+  // already been cleared in that case, so we bail early here, too.
+  if (state->shuttingDown()) {
+    return true;
+  }
+
+  Rooted<ReadableStream*> unwrappedSource(cx, GetUnwrappedSource(cx, state));
+  if (!unwrappedSource) {
+    return false;
+  }
 
   Rooted<Maybe<Value>> storedError(cx, Some(unwrappedSource->storedError()));
   if (!cx->compartment()->wrap(cx, &storedError)) {
@@ -512,10 +522,20 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
  * "b. Errors must be propagated backward: if dest.[[state]] is or becomes
  * 'errored', then..."
  */
-[[nodiscard]] static bool OnDestErrored(JSContext* cx,
-                                        Handle<PipeToState*> state,
-                                        Handle<WritableStream*> unwrappedDest) {
+[[nodiscard]] static bool OnDestErrored(JSContext* cx, Handle<PipeToState*> state) {
   cx->check(state);
+
+  // While Shutdown and ShutdownWithAction return early if shuttingDown is
+  // true, the unwrapping operation below would fail because the dest has
+  // already been cleared in that case, so we bail early here, too.
+  if (state->shuttingDown()) {
+    return true;
+  }
+
+  Rooted<WritableStream*> unwrappedDest(cx, GetUnwrappedDest(cx, state));
+  if (!unwrappedDest) {
+    return false;
+  }
 
   Rooted<Maybe<Value>> storedError(cx, Some(unwrappedDest->storedError()));
   if (!cx->compartment()->wrap(cx, &storedError)) {
@@ -671,13 +691,13 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
   // a. Errors must be propagated forward: if source.[[state]] is or becomes
   //    "errored", then
   if (unwrappedSource->errored()) {
-    return OnSourceErrored(cx, state, unwrappedSource);
+    return OnSourceErrored(cx, state);
   }
 
   // b. Errors must be propagated backward: if dest.[[state]] is or becomes
   //    "errored", then
   if (unwrappedDest->errored()) {
-    return OnDestErrored(cx, state, unwrappedDest);
+    return OnDestErrored(cx, state);
   }
 
   // c. Closing must be propagated forward: if source.[[state]] is or becomes
@@ -720,12 +740,7 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
   Rooted<PipeToState*> state(cx, TargetFromHandler<PipeToState>(args));
   cx->check(state);
 
-  Rooted<ReadableStream*> unwrappedSource(cx, GetUnwrappedSource(cx, state));
-  if (!unwrappedSource) {
-    return false;
-  }
-
-  if (!OnSourceErrored(cx, state, unwrappedSource)) {
+  if (!OnSourceErrored(cx, state)) {
     return false;
   }
 
@@ -755,12 +770,7 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
   Rooted<PipeToState*> state(cx, TargetFromHandler<PipeToState>(args));
   cx->check(state);
 
-  Rooted<WritableStream*> unwrappedDest(cx, GetUnwrappedDest(cx, state));
-  if (!unwrappedDest) {
-    return false;
-  }
-
-  if (!OnDestErrored(cx, state, unwrappedDest)) {
+  if (!OnDestErrored(cx, state)) {
     return false;
   }
 
