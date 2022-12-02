@@ -40,6 +40,7 @@
 #include "js/shadow/Zone.h"
 #include "js/ShadowRealmCallbacks.h"
 #include "js/Stack.h"
+#include "js/Stream.h" // JS::AbortSignalIsAborted
 #include "js/StreamConsumer.h"
 #include "js/Symbol.h"
 #include "js/UniquePtr.h"
