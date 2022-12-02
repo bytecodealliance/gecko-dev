@@ -439,6 +439,32 @@ UNIFIED_SOURCES += [
     "vm/Xdr.cpp",
 ]
 
+if CONFIG["MOZ_JS_STREAMS"]:
+    UNIFIED_SOURCES += [
+        "builtin/Stream.cpp",
+        "builtin/streams/MiscellaneousOperations.cpp",
+        "builtin/streams/PipeToState.cpp",
+        "builtin/streams/PullIntoDescriptor.cpp",
+        "builtin/streams/QueueingStrategies.cpp",
+        "builtin/streams/QueueWithSizes.cpp",
+        "builtin/streams/ReadableStream.cpp",
+        "builtin/streams/ReadableStreamBYOBReader.cpp",
+        "builtin/streams/ReadableStreamDefaultController.cpp",
+        "builtin/streams/ReadableStreamDefaultControllerOperations.cpp",
+        "builtin/streams/ReadableStreamDefaultReader.cpp",
+        "builtin/streams/ReadableStreamInternals.cpp",
+        "builtin/streams/ReadableStreamOperations.cpp",
+        "builtin/streams/ReadableStreamReader.cpp",
+        "builtin/streams/StreamAPI.cpp",
+        "builtin/streams/TeeState.cpp",
+        "builtin/streams/WritableStream.cpp",
+        "builtin/streams/WritableStreamDefaultController.cpp",
+        "builtin/streams/WritableStreamDefaultControllerOperations.cpp",
+        "builtin/streams/WritableStreamDefaultWriter.cpp",
+        "builtin/streams/WritableStreamOperations.cpp",
+        "builtin/streams/WritableStreamWriterOperations.cpp",
+    ]
+
 # builtin/RegExp.cpp cannot be built in unified mode because it causes huge
 #   win32 test slowdowns
 # jsmath.cpp cannot be built in unified mode because it needs to re-#define the

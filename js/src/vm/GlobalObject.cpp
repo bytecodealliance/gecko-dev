@@ -31,6 +31,9 @@
 #include "builtin/streams/ReadableStream.h"  // js::ReadableStream
 #include "builtin/streams/ReadableStreamController.h"  // js::Readable{StreamDefault,ByteStream}Controller
 #include "builtin/streams/ReadableStreamReader.h"  // js::ReadableStreamDefaultReader
+#include "builtin/streams/WritableStream.h"        // js::WritableStream
+#include "builtin/streams/WritableStreamDefaultController.h"  // js::WritableStreamDefaultController
+#include "builtin/streams/WritableStreamDefaultWriter.h"  // js::WritableStreamDefaultWriter
 #include "builtin/Symbol.h"
 #ifdef JS_HAS_TEMPORAL_API
 #  include "builtin/temporal/Calendar.h"
@@ -212,6 +215,14 @@ bool GlobalObject::skipDeselectedConstructor(JSContext* cx, JSProtoKey key) {
     case JSProto_ByteLengthQueuingStrategy:
     case JSProto_CountQueuingStrategy:
       return !cx->realm()->creationOptions().getStreamsEnabled();
+
+    case JSProto_WritableStream:
+    case JSProto_WritableStreamDefaultController:
+    case JSProto_WritableStreamDefaultWriter: {
+      const auto& realmOptions = cx->realm()->creationOptions();
+      return !realmOptions.getStreamsEnabled() ||
+             !realmOptions.getWritableStreamsEnabled();
+    }
 #endif
 
 #ifdef JS_HAS_TEMPORAL_API
