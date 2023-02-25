@@ -40,6 +40,7 @@
 #include "js/shadow/Zone.h"
 #include "js/ShadowRealmCallbacks.h"
 #include "js/Stack.h"
+#include "js/Stream.h" // JS::AbortSignalIsAborted
 #include "js/StreamConsumer.h"
 #include "js/Symbol.h"
 #include "js/UniquePtr.h"
@@ -557,6 +558,30 @@ struct JSRuntime {
  public:
   const JSClass* maybeWindowProxyClass() const { return windowProxyClass_; }
   void setWindowProxyClass(const JSClass* clasp) { windowProxyClass_ = clasp; }
+
+ private:
+  js::WriteOnceData<const JSClass*> abortSignalClass_;
+  js::WriteOnceData<JS::AbortSignalIsAborted> abortSignalIsAborted_;
+
+ public:
+  void initPipeToHandling(const JSClass* abortSignalClass,
+                          JS::AbortSignalIsAborted isAborted) {
+    MOZ_ASSERT(abortSignalClass != nullptr,
+               "doesn't make sense for an embedder to provide a null class "
+               "when specifying pipeTo handling");
+    MOZ_ASSERT(isAborted != nullptr, "must pass a valid function pointer");
+
+    abortSignalClass_ = abortSignalClass;
+    abortSignalIsAborted_ = isAborted;
+  }
+
+  const JSClass* maybeAbortSignalClass() const { return abortSignalClass_; }
+
+  bool abortSignalIsAborted(JSObject* obj) {
+    MOZ_ASSERT(abortSignalIsAborted_ != nullptr,
+               "must call initPipeToHandling first");
+    return abortSignalIsAborted_(obj);
+  }
 
  private:
   // List of non-ephemeron weak containers to sweep during
