@@ -182,6 +182,43 @@ class JS_PUBLIC_API RealmCreationOptions {
   bool getCoopAndCoepEnabled() const;
   RealmCreationOptions& setCoopAndCoepEnabled(bool flag);
 
+  bool getStreamsEnabled() const { return streams_; }
+  RealmCreationOptions& setStreamsEnabled(bool flag) {
+#ifdef MOZ_JS_STREAMS
+#  ifdef MOZ_DOM_STREAMS
+#    error "JS and DOM streams shouldn't be simultaneously configured"
+#  endif
+    streams_ = flag;
+#else
+    MOZ_ASSERT(!streams_);
+#endif
+    return *this;
+  }
+
+  bool getReadableByteStreamsEnabled() const { return readableByteStreams_; }
+  RealmCreationOptions& setReadableByteStreamsEnabled(bool flag) {
+    readableByteStreams_ = flag;
+    return *this;
+  }
+
+  bool getBYOBStreamReadersEnabled() const { return byobStreamReaders_; }
+  RealmCreationOptions& setBYOBStreamReadersEnabled(bool enabled) {
+    byobStreamReaders_ = enabled;
+    return *this;
+  }
+
+  bool getWritableStreamsEnabled() const { return writableStreams_; }
+  RealmCreationOptions& setWritableStreamsEnabled(bool enabled) {
+    writableStreams_ = enabled;
+    return *this;
+  }
+
+  bool getReadableStreamPipeToEnabled() const { return readableStreamPipeTo_; }
+  RealmCreationOptions& setReadableStreamPipeToEnabled(bool enabled) {
+    readableStreamPipeTo_ = enabled;
+    return *this;
+  }
+
   WeakRefSpecifier getWeakRefsEnabled() const { return weakRefs_; }
   RealmCreationOptions& setWeakRefsEnabled(WeakRefSpecifier spec) {
     weakRefs_ = spec;
@@ -308,6 +345,11 @@ class JS_PUBLIC_API RealmCreationOptions {
   bool sharedMemoryAndAtomics_ = false;
   bool defineSharedArrayBufferConstructor_ = true;
   bool coopAndCoep_ = false;
+  bool streams_ = false;
+  bool readableByteStreams_ = false;
+  bool byobStreamReaders_ = false;
+  bool writableStreams_ = false;
+  bool readableStreamPipeTo_ = false;
   bool toSource_ = false;
   bool propertyErrorMessageFix_ = false;
   bool iteratorHelpers_ = false;
