@@ -6,6 +6,7 @@
 
 #include "FetchStreamReader.h"
 #include "InternalResponse.h"
+#include "js/Stream.h"
 #include "mozilla/ConsoleReportCollector.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/StaticAnalysisFunctions.h"
