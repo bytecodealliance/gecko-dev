@@ -201,6 +201,11 @@ already_AddRefed<ReadableStream> ReadableStream::Constructor(
     }
 
     // Step 4.3
+    if (!StaticPrefs::dom_streams_byte_streams_enabled()) {
+      aRv.ThrowNotSupportedError("BYOB byte streams not yet supported.");
+      return nullptr;
+    }
+
     SetUpReadableByteStreamControllerFromUnderlyingSource(
         aGlobal.Context(), readableStream, underlyingSourceObj,
         underlyingSourceDict, highWaterMark, aRv);
@@ -709,6 +714,12 @@ void ReadableStream::GetReader(const ReadableStreamGetReaderOptions& aOptions,
   MOZ_ASSERT(aOptions.mMode.Value() == ReadableStreamReaderMode::Byob);
 
   // Step 3. Return ? AcquireReadableStreamBYOBReader(this).
+  if (!StaticPrefs::dom_streams_byte_streams_enabled()) {
+    aRv.ThrowTypeError("BYOB byte streams reader not yet supported.");
+    return;
+  }
+
+  RefPtr<ReadableStream> thisRefPtr = this;
   RefPtr<ReadableStreamBYOBReader> byobReader =
       AcquireReadableStreamBYOBReader(this, aRv);
   if (aRv.Failed()) {
