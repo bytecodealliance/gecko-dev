@@ -29,9 +29,9 @@
 #include "builtin/FinalizationRegistryObject.h"
 #include "builtin/MapObject.h"
 #include "builtin/ShadowRealm.h"
-#include "builtin/Stream.h"
 #include "builtin/streams/QueueingStrategies.h"  // js::{ByteLength,Count}QueueingStrategy
-#include "builtin/streams/ReadableStream.h"  // js::ReadableStream
+#include "builtin/streams/ReadableStream.h"             // js::ReadableStream
+#include "builtin/streams/ReadableStreamBYOBRequest.h"  // js::ReadableStreamBYOBRequest
 #include "builtin/streams/ReadableStreamController.h"  // js::Readable{StreamDefault,ByteStream}Controller
 #include "builtin/streams/ReadableStreamReader.h"  // js::ReadableStreamDefaultReader
 #include "builtin/streams/WritableStream.h"        // js::WritableStream
@@ -238,18 +238,15 @@ bool GlobalObject::skipDeselectedConstructor(JSContext* cx, JSProtoKey key) {
     case JSProto_ReadableStream:
     case JSProto_ReadableStreamDefaultReader:
     case JSProto_ReadableStreamDefaultController:
-    case JSProto_ReadableByteStreamController:
     case JSProto_ByteLengthQueuingStrategy:
     case JSProto_CountQueuingStrategy:
-      return !cx->realm()->creationOptions().getStreamsEnabled();
-
+    case JSProto_ReadableStreamBYOBReader:
+    case JSProto_ReadableStreamBYOBRequest:
+    case JSProto_ReadableByteStreamController:
     case JSProto_WritableStream:
     case JSProto_WritableStreamDefaultController:
-    case JSProto_WritableStreamDefaultWriter: {
-      const auto& realmOptions = cx->realm()->creationOptions();
-      return !realmOptions.getStreamsEnabled() ||
-             !realmOptions.getWritableStreamsEnabled();
-    }
+    case JSProto_WritableStreamDefaultWriter:
+      return !cx->realm()->creationOptions().getStreamsEnabled();
 #endif
 
 #ifdef JS_HAS_TEMPORAL_API

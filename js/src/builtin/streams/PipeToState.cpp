@@ -446,7 +446,8 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
  * "a. Errors must be propagated forward: if source.[[state]] is or becomes
  * 'errored', then..."
  */
-[[nodiscard]] static bool OnSourceErrored(JSContext* cx, Handle<PipeToState*> state) {
+[[nodiscard]] static bool OnSourceErrored(JSContext* cx,
+                                          Handle<PipeToState*> state) {
   cx->check(state);
 
   // While Shutdown and ShutdownWithAction return early if shuttingDown is
@@ -523,7 +524,8 @@ static bool WritableAndNotClosing(const WritableStream* unwrappedDest) {
  * "b. Errors must be propagated backward: if dest.[[state]] is or becomes
  * 'errored', then..."
  */
-[[nodiscard]] static bool OnDestErrored(JSContext* cx, Handle<PipeToState*> state) {
+[[nodiscard]] static bool OnDestErrored(JSContext* cx,
+                                        Handle<PipeToState*> state) {
   cx->check(state);
 
   // While Shutdown and ShutdownWithAction return early if shuttingDown is

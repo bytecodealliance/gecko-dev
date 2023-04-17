@@ -276,6 +276,12 @@ extern JS_PUBLIC_API void ReadableStreamReleaseCCObject(JSObject* stream);
 extern JS_PUBLIC_API bool IsReadableStream(JSObject* obj);
 
 /**
+ * Returns true if the given object is a ReadableStreamBYOBReader object
+ * or an unwrappable wrapper for one, false otherwise.
+ */
+extern JS_PUBLIC_API bool IsReadableStreamBYOBReader(JSObject* obj);
+
+/**
  * Returns true if the given object is a ReadableStreamDefaultReader or
  * ReadableStreamBYOBReader object or an unwrappable wrapper for one, false
  * otherwise.
@@ -317,7 +323,8 @@ enum class ReadableStreamReaderMode { Default, Byob };
  * Asserts that |stream| is a ReadableStream object or an unwrappable wrapper
  * for one.
  */
-extern JS_PUBLIC_API Value ReadableStreamGetStoredError(JSContext* cx, HandleObject stream);
+extern JS_PUBLIC_API Value ReadableStreamGetStoredError(JSContext* cx,
+                                                        HandleObject stream);
 
 /**
  * Returns true if the given ReadableStream is readable, false if not.
@@ -387,8 +394,8 @@ extern JS_PUBLIC_API JSObject* ReadableStreamGetReader(
  * Checks if |stream| is a ReadableStream object or an unwrappable wrapper
  * for one and throws an error if not.
  */
-extern JS_PUBLIC_API JSObject* ReadableStreamGetController(
-    JSContext* cx, HandleObject stream);
+extern JS_PUBLIC_API JSObject* ReadableStreamGetController(JSContext* cx,
+                                                           HandleObject stream);
 
 /**
  * Returns the underlying source associated with the given
@@ -546,6 +553,20 @@ extern JS_PUBLIC_API bool ReadableStreamReaderReleaseLock(JSContext* cx,
                                                           HandleObject reader);
 
 /**
+ * C++ equivalent of the `reader.read()` method on byob readers
+ * (<https://streams.spec.whatwg.org/#default-reader-read>).
+ *
+ * The result is a new Promise object, or null on OOM.
+ *
+ * `reader` must be the result of calling `JS::ReadableStreamGetReader` with
+ * `ReadableStreamReaderMode::Default` mode, or an unwrappable wrapper for such
+ * a reader.
+ */
+extern JS_PUBLIC_API JSObject* ReadableStreamBYOBReaderRead(JSContext* cx,
+                                                            HandleObject reader,
+                                                            HandleObject view);
+
+/**
  * C++ equivalent of the `reader.read()` method on default readers
  * (<https://streams.spec.whatwg.org/#default-reader-read>).
  *
@@ -575,12 +596,7 @@ extern JS_PUBLIC_API JSObject* NewWritableDefaultStreamObject(
  */
 extern JS_PUBLIC_API bool IsWritableStream(JSObject* obj);
 
-enum class WritableStreamState {
-    Writable,
-    Closed,
-    Erroring,
-    Errored
-};
+enum class WritableStreamState { Writable, Closed, Erroring, Errored };
 
 /**
  * Returns the given WritableStream's state.
@@ -588,8 +604,8 @@ enum class WritableStreamState {
  * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
  * for one.
  */
-extern JS_PUBLIC_API WritableStreamState WritableStreamGetState(
-    JSContext* cx, HandleObject stream);
+extern JS_PUBLIC_API WritableStreamState
+WritableStreamGetState(JSContext* cx, HandleObject stream);
 
 /**
  * Returns true if the given WritableStream is locked, false if not.
@@ -597,7 +613,8 @@ extern JS_PUBLIC_API WritableStreamState WritableStreamGetState(
  * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
  * for one.
  */
-extern JS_PUBLIC_API bool WritableStreamIsLocked(JSContext* cx, HandleObject stream);
+extern JS_PUBLIC_API bool WritableStreamIsLocked(JSContext* cx,
+                                                 HandleObject stream);
 
 /**
  * Returns true if the given object is a WritableStreamDefaultWriter or
@@ -614,7 +631,8 @@ extern JS_PUBLIC_API bool IsWritableStreamWriter(JSObject* obj);
  * for one. The returned object will always be created in the
  * current cx compartment.
  */
-extern JS_PUBLIC_API JSObject* WritableStreamGetWriter(JSContext* cx, HandleObject stream);
+extern JS_PUBLIC_API JSObject* WritableStreamGetWriter(JSContext* cx,
+                                                       HandleObject stream);
 
 /**
  * Returns the controller associated with the given WritableStream.
@@ -622,8 +640,8 @@ extern JS_PUBLIC_API JSObject* WritableStreamGetWriter(JSContext* cx, HandleObje
  * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
  * for one.
  */
-extern JS_PUBLIC_API JSObject* WritableStreamGetController(
-    JSContext* cx, HandleObject stream);
+extern JS_PUBLIC_API JSObject* WritableStreamGetController(JSContext* cx,
+                                                           HandleObject stream);
 
 /**
  * Returns the underlying sink associated with the given
@@ -648,8 +666,9 @@ extern JS_PUBLIC_API Value WritableStreamControllerGetUnderlyingSink(
  * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
  * for one.
  */
-extern JS_PUBLIC_API bool WritableStreamError(
-    JSContext* cx, HandleObject stream, HandleValue error);
+extern JS_PUBLIC_API bool WritableStreamError(JSContext* cx,
+                                              HandleObject stream,
+                                              HandleValue error);
 
 /**
  * Returns the stream's stored error.
@@ -657,7 +676,8 @@ extern JS_PUBLIC_API bool WritableStreamError(
  * Asserts that |stream| is a WritableStream object or an unwrappable wrapper
  * for one.
  */
-extern JS_PUBLIC_API Value WritableStreamGetStoredError(JSContext* cx, HandleObject stream);
+extern JS_PUBLIC_API Value WritableStreamGetStoredError(JSContext* cx,
+                                                        HandleObject stream);
 
 class JS_PUBLIC_API WritableStreamUnderlyingSink {
  public:

@@ -17,7 +17,7 @@
 #include "builtin/streams/ReadableStreamController.h"  // js::ReadableStream{,Default}Controller
 #include "builtin/streams/ReadableStreamDefaultControllerOperations.h"  // js::ReadableStreamDefaultController{Close,Enqueue}, js::ReadableStreamControllerError, js::SourceAlgorithms
 #include "builtin/streams/ReadableStreamInternals.h"  // js::ReadableStreamCancel
-#include "builtin/streams/ReadableStreamReader.h"  // js::CreateReadableStreamDefaultReader, js::ForAuthorCodeBool, js::ReadableStream{,Default}Reader, js::ReadableStreamDefaultReaderRead
+#include "builtin/streams/ReadableStreamReader.h"  // js::CreateReadableStreamDefaultReader, js::ForAuthorCodeBool, js::ReadableStream{,Default}Reader, js::ReadableStreamReaderGenericRead
 #include "builtin/streams/TeeState.h"              // js::TeeState
 #include "js/CallAndConstruct.h"                   // JS::IsCallable
 #include "js/CallArgs.h"                           // JS::CallArgs{,FromVp}
@@ -536,6 +536,17 @@ static bool TeeReaderErroredHandler(JSContext* cx, unsigned argc,
     JSContext* cx, JS::Handle<ReadableStream*> unwrappedStream,
     bool cloneForBranch2, JS::MutableHandle<ReadableStream*> branch1Stream,
     JS::MutableHandle<ReadableStream*> branch2Stream) {
+  // BYOB stream tee is unimplemented
+  if (unwrappedStream->controller()->is<ReadableByteStreamController>()) {
+    Rooted<ReadableByteStreamController*> unwrappedController(
+        cx, &unwrappedStream->controller()->as<ReadableByteStreamController>());
+    if (!unwrappedController->hasExternalSource()) {
+      JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                JSMSG_READABLESTREAMTEE_BYOB);
+      return false;
+    }
+  }
+
   // Step 1: Assert: ! IsReadableStream(stream) is true (implicit).
 
   // Step 2: Assert: Type(cloneForBranch2) is Boolean (implicit).
@@ -543,8 +554,11 @@ static bool TeeReaderErroredHandler(JSContext* cx, unsigned argc,
   // The streams spec only ever passes |cloneForBranch2 = false|.  It's expected
   // that external specs that pass |cloneForBranch2 = true| will at some point
   // come into existence, but we don't presently implement any such specs.
-  MOZ_ASSERT(!cloneForBranch2,
-             "support for cloneForBranch2=true is not yet implemented");
+  if (cloneForBranch2) {
+    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                              JSMSG_READABLESTREAMTEE_CLONE);
+    return false;
+  }
 
   // Step 3: Let reader be ? AcquireReadableStreamDefaultReader(stream).
   Rooted<ReadableStreamDefaultReader*> reader(

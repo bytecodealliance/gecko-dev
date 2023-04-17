@@ -210,8 +210,6 @@ js::CreateWritableStreamDefaultWriter(JSContext* cx,
  */
 bool WritableStreamDefaultWriter::constructor(JSContext* cx, unsigned argc,
                                               Value* vp) {
-  MOZ_ASSERT(cx->realm()->creationOptions().getWritableStreamsEnabled(),
-             "WritableStream should be enabled in this realm if we reach here");
 
   CallArgs args = CallArgsFromVp(argc, vp);
 

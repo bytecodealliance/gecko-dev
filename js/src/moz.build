@@ -448,14 +448,16 @@ UNIFIED_SOURCES += [
 
 if CONFIG["MOZ_JS_STREAMS"]:
     UNIFIED_SOURCES += [
-        "builtin/Stream.cpp",
         "builtin/streams/MiscellaneousOperations.cpp",
         "builtin/streams/PipeToState.cpp",
         "builtin/streams/PullIntoDescriptor.cpp",
         "builtin/streams/QueueingStrategies.cpp",
         "builtin/streams/QueueWithSizes.cpp",
+        "builtin/streams/ReadableByteStreamController.cpp",
+        "builtin/streams/ReadableByteStreamControllerOperations.cpp",
         "builtin/streams/ReadableStream.cpp",
         "builtin/streams/ReadableStreamBYOBReader.cpp",
+        "builtin/streams/ReadableStreamBYOBRequest.cpp",
         "builtin/streams/ReadableStreamDefaultController.cpp",
         "builtin/streams/ReadableStreamDefaultControllerOperations.cpp",
         "builtin/streams/ReadableStreamDefaultReader.cpp",

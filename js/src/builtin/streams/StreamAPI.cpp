@@ -13,7 +13,6 @@
 #include "jsfriendapi.h"  // js::IsObjectInContextCompartment
 #include "jstypes.h"      // JS_{FRIEND,PUBLIC}_API
 
-#include "builtin/Stream.h"  // js::ReadableByteStreamController{,Close}, js::ReadableStreamDefaultController{,Close}, js::StreamController
 #include "builtin/streams/ReadableStream.h"  // js::ReadableStream
 #include "builtin/streams/ReadableStreamController.h"  // js::CheckReadableStreamControllerCanCloseOrEnqueue
 #include "builtin/streams/ReadableStreamDefaultControllerOperations.h"  // js::ReadableStreamController{Error,GetDesiredSizeUnchecked}, js::SetUpReadableStreamDefaultControllerFromUnderlyingSource
@@ -22,12 +21,12 @@
 #include "builtin/streams/ReadableStreamReader.h"  // js::ReadableStream{,Default}Reader, js::ForAuthorCodeBool
 #include "builtin/streams/StreamController.h"  // js::StreamController
 #include "builtin/streams/WritableStream.h"    // js::WritableStream
-#include "builtin/streams/WritableStreamDefaultController.h" // js::WritableStreamDefaultController
-#include "builtin/streams/WritableStreamDefaultControllerOperations.h" // js::WritableStreamDefaultControllerError, js::SetUpWritableStreamDefaultControllerFromUnderlyingSink
-#include "builtin/streams/WritableStreamDefaultWriter.h" // js::CreateWritableStreamDefaultWriter
-#include "gc/Zone.h"                           // JS::Zone
-#include "js/Context.h"                        // js::AssertHeapIsIdle
-#include "js/ErrorReport.h"                    // JS_ReportErrorNumberASCII
+#include "builtin/streams/WritableStreamDefaultController.h"  // js::WritableStreamDefaultController
+#include "builtin/streams/WritableStreamDefaultControllerOperations.h"  // js::WritableStreamDefaultControllerError, js::SetUpWritableStreamDefaultControllerFromUnderlyingSink
+#include "builtin/streams/WritableStreamDefaultWriter.h"  // js::CreateWritableStreamDefaultWriter
+#include "gc/Zone.h"                                      // JS::Zone
+#include "js/Context.h"                 // js::AssertHeapIsIdle
+#include "js/ErrorReport.h"             // JS_ReportErrorNumberASCII
 #include "js/experimental/TypedData.h"  // JS_GetArrayBufferViewData, JS_NewUint8Array
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "js/GCAPI.h"       // JS::AutoCheckCannotGC, JS::AutoSuppressGCAnalysis
@@ -57,6 +56,7 @@ using js::PlainObject;
 using js::ReadableByteStreamController;
 using js::ReadableByteStreamControllerClose;
 using js::ReadableStream;
+using js::ReadableStreamBYOBReader;
 using js::ReadableStreamController;
 using js::ReadableStreamControllerError;
 using js::ReadableStreamControllerGetDesiredSizeUnchecked;
@@ -65,6 +65,7 @@ using js::ReadableStreamDefaultControllerClose;
 using js::ReadableStreamDefaultReader;
 using js::ReadableStreamFulfillReadOrReadIntoRequest;
 using js::ReadableStreamGetNumReadRequests;
+using js::ReadableStreamHasBYOBReader;
 using js::ReadableStreamHasDefaultReader;
 using js::ReadableStreamReader;
 using js::ReadableStreamTee;
@@ -141,6 +142,10 @@ JS_PUBLIC_API bool JS::IsReadableStream(JSObject* obj) {
 
 JS_PUBLIC_API bool JS::IsReadableStreamReader(JSObject* obj) {
   return obj->canUnwrapAs<ReadableStreamDefaultReader>();
+}
+
+JS_PUBLIC_API bool JS::IsReadableStreamBYOBReader(JSObject* obj) {
+  return obj->canUnwrapAs<ReadableStreamBYOBReader>();
 }
 
 JS_PUBLIC_API bool JS::IsReadableStreamDefaultReader(JSObject* obj) {
@@ -272,7 +277,7 @@ JS_PUBLIC_API bool JS::ReadableStreamControllerShouldCallPull(
       cx, APIUnwrapAndDowncast<ReadableStreamController>(cx, controllerObj));
   MOZ_ASSERT(unwrappedController);
 
-  return js::ReadableStreamControllerShouldCallPull(unwrappedController);
+  return js::ReadableStreamControllerShouldCallPull(cx, unwrappedController);
 }
 
 JS_PUBLIC_API JSObject* JS::ReadableStreamGetController(
@@ -290,7 +295,8 @@ JS_PUBLIC_API JSObject* JS::ReadableStreamGetController(
 }
 
 JS_PUBLIC_API bool JS::ReadableStreamControllerGetUnderlyingSource(
-    JSContext* cx, Handle<JSObject*> controllerObj, MutableHandle<Value> source) {
+    JSContext* cx, Handle<JSObject*> controllerObj,
+    MutableHandle<Value> source) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
 
@@ -675,6 +681,22 @@ JS_PUBLIC_API bool JS::ReadableStreamReaderReleaseLock(
   return ReadableStreamReaderGenericRelease(cx, unwrappedReader);
 }
 
+JS_PUBLIC_API JSObject* JS::ReadableStreamBYOBReaderRead(
+    JSContext* cx, Handle<JSObject*> readerObj, Handle<JSObject*> view) {
+  AssertHeapIsIdle();
+  CHECK_THREAD(cx);
+
+  Rooted<ReadableStreamDefaultReader*> unwrappedReader(
+      cx, APIUnwrapAndDowncast<ReadableStreamDefaultReader>(cx, readerObj));
+  if (!unwrappedReader) {
+    return nullptr;
+  }
+  MOZ_ASSERT(unwrappedReader->forAuthorCode() == ForAuthorCodeBool::No,
+             "C++ code should not touch readers created by scripts");
+
+  return js::ReadableStreamBYOBReaderRead(cx, unwrappedReader, view);
+}
+
 JS_PUBLIC_API JSObject* JS::ReadableStreamDefaultReaderRead(
     JSContext* cx, Handle<JSObject*> readerObj) {
   AssertHeapIsIdle();
@@ -734,7 +756,8 @@ JS_PUBLIC_API bool JS::IsWritableStream(JSObject* obj) {
 
 JS_PUBLIC_API JS::WritableStreamState JS::WritableStreamGetState(
     JSContext* cx, Handle<JSObject*> streamObj) {
-  WritableStream* unwrappedStream = APIUnwrapAndDowncast<WritableStream>(cx, streamObj);
+  WritableStream* unwrappedStream =
+      APIUnwrapAndDowncast<WritableStream>(cx, streamObj);
   MOZ_ASSERT(unwrappedStream);
 
   if (unwrappedStream->writable()) {
@@ -753,8 +776,10 @@ JS_PUBLIC_API JS::WritableStreamState JS::WritableStreamGetState(
   return JS::WritableStreamState::Errored;
 }
 
-JS_PUBLIC_API bool JS::WritableStreamIsLocked(JSContext* cx, Handle<JSObject*> streamObj) {
-  WritableStream* unwrappedStream = APIUnwrapAndDowncast<WritableStream>(cx, streamObj);
+JS_PUBLIC_API bool JS::WritableStreamIsLocked(JSContext* cx,
+                                              Handle<JSObject*> streamObj) {
+  WritableStream* unwrappedStream =
+      APIUnwrapAndDowncast<WritableStream>(cx, streamObj);
   MOZ_ASSERT(unwrappedStream);
 
   return unwrappedStream->isLocked();
@@ -783,7 +808,8 @@ JS_PUBLIC_API JSObject* JS::WritableStreamGetController(
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
 
-  WritableStream* unwrappedStream = APIUnwrapAndDowncast<WritableStream>(cx, streamObj);
+  WritableStream* unwrappedStream =
+      APIUnwrapAndDowncast<WritableStream>(cx, streamObj);
   MOZ_ASSERT(unwrappedStream);
 
   return unwrappedStream->controller();
@@ -801,8 +827,9 @@ JS_PUBLIC_API JS::Value JS::WritableStreamControllerGetUnderlyingSink(
   return unwrappedController->underlyingSink();
 }
 
-JS_PUBLIC_API bool JS::WritableStreamError(
-    JSContext* cx, Handle<JSObject*> streamObj, Handle<Value> error) {
+JS_PUBLIC_API bool JS::WritableStreamError(JSContext* cx,
+                                           Handle<JSObject*> streamObj,
+                                           Handle<Value> error) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
   cx->check(error);

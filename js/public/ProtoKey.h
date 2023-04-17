@@ -165,6 +165,10 @@
   REAL_IF_TEMPORAL(TimeZone, OCLASP(temporal::TimeZone))                    \
   REAL_IF_TEMPORAL(ZonedDateTime, OCLASP(temporal::ZonedDateTime))          \
   IF_JS_STREAMS(REAL(ReadableStream, &js::ReadableStream::class_))             \
+  IF_JS_STREAMS(REAL(ReadableStreamBYOBReader,                                 \
+                    &js::ReadableStreamBYOBReader::class_))                    \
+  IF_JS_STREAMS(REAL(ReadableStreamBYOBRequest,                                \
+                    &js::ReadableStreamBYOBRequest::class_))                   \
   IF_JS_STREAMS(REAL(ReadableStreamDefaultReader,                              \
                      &js::ReadableStreamDefaultReader::class_))                \
   IF_JS_STREAMS(REAL(ReadableStreamDefaultController,                          \
