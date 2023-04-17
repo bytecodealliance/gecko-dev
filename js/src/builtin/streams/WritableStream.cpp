@@ -67,22 +67,29 @@ bool WritableStream::constructor(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   // Implicit in the spec: argument default values.
-  Rooted<Value> underlyingSink(cx, args.get(0));
-  if (underlyingSink.isUndefined()) {
+  Rooted<Value> underlyingSinkVal(cx, args.get(0));
+  Rooted<JSObject*> underlyingSink(cx);
+  if (underlyingSinkVal.isUndefined()) {
     JSObject* emptyObj = NewPlainObject(cx);
     if (!emptyObj) {
       return false;
     }
-    underlyingSink = ObjectValue(*emptyObj);
+    underlyingSink.set(emptyObj);
+    underlyingSinkVal.setObject(*underlyingSink);
+  } else {
+    underlyingSink.set(&underlyingSinkVal.toObject());
   }
 
-  Rooted<Value> strategy(cx, args.get(1));
-  if (strategy.isUndefined()) {
+  Rooted<Value> strategyVal(cx, args.get(1));
+  Rooted<JSObject*> strategy(cx);
+  if (strategyVal.isUndefined()) {
     JSObject* emptyObj = NewPlainObject(cx);
     if (!emptyObj) {
       return false;
     }
-    strategy = ObjectValue(*emptyObj);
+    strategy.set(emptyObj);
+  } else {
+    strategy.set(&strategyVal.toObject());
   }
 
   // Implicit in the spec: Set this to
@@ -99,24 +106,23 @@ bool WritableStream::constructor(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  Rooted<JSObject*> receiver(cx, &strategy.toObject());
   // Step 2: Let size be ? GetV(strategy, "size").
   Rooted<Value> size(cx);
-  if (!GetProperty(cx, receiver, strategy, cx->names().size, &size)) {
+  if (!GetProperty(cx, strategy, strategyVal, cx->names().size, &size)) {
     return false;
   }
 
   // Step 3: Let highWaterMark be ? GetV(strategy, "highWaterMark").
   Rooted<Value> highWaterMarkVal(cx);
-  if (!GetProperty(cx, receiver, strategy, cx->names().highWaterMark,
+  if (!GetProperty(cx, strategy, strategyVal, cx->names().highWaterMark,
                    &highWaterMarkVal)) {
     return false;
   }
 
-  receiver.set(&underlyingSink.toObject());
   // Step 4: Let type be ? GetV(underlyingSink, "type").
   Rooted<Value> type(cx);
-  if (!GetProperty(cx, receiver, underlyingSink, cx->names().type, &type)) {
+  if (!GetProperty(cx, underlyingSink, underlyingSinkVal, cx->names().type,
+                   &type)) {
     return false;
   }
 
@@ -139,8 +145,8 @@ bool WritableStream::constructor(JSContext* cx, unsigned argc, Value* vp) {
   } else {
     // Step 8: Set highWaterMark to ?
     // ValidateAndNormalizeHighWaterMark(highWaterMark).
-    if (!ValidateAndNormalizeHighWaterMark(cx, highWaterMarkVal,
-                                           &highWaterMark)) {
+    if (!ValidateAndNormalizeHighWaterMark(cx, highWaterMarkVal, &highWaterMark,
+                                           1)) {
       return false;
     }
   }
@@ -149,7 +155,7 @@ bool WritableStream::constructor(JSContext* cx, unsigned argc, Value* vp) {
   //         ? SetUpWritableStreamDefaultControllerFromUnderlyingSink(
   //         this, underlyingSink, highWaterMark, sizeAlgorithm).
   if (!SetUpWritableStreamDefaultControllerFromUnderlyingSink(
-          cx, stream, underlyingSink, highWaterMark, size)) {
+          cx, stream, underlyingSinkVal, highWaterMark, size)) {
     return false;
   }
 
