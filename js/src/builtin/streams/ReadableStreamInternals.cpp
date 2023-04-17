@@ -76,7 +76,6 @@ using js::ReadableStream;
   if (!unwrappedReader) {
     return nullptr;
   }
-  MOZ_ASSERT(unwrappedReader->is<ReadableStreamDefaultReader>());
 
   // Step 2 of 3.5.1: Assert: stream.[[state]] is "readable" or "closed".
   // Step 2 of 3.5.2: Assert: stream.[[state]] is "readable".
@@ -147,6 +146,44 @@ static bool ReturnUndefined(JSContext* cx, unsigned argc, Value* vp) {
     return nullptr;
   }
 
+  // If reader is not undefined and reader implements ReadableStreamBYOBReader,
+  if (unwrappedStream->hasReader()) {
+    Rooted<ReadableStreamReader*> unwrappedReader(
+        cx, UnwrapReaderFromStream(cx, unwrappedStream));
+    if (!unwrappedReader) {
+      return nullptr;
+    }
+    if (unwrappedReader->is<ReadableStreamBYOBReader>()) {
+      Rooted<ReadableStreamBYOBReader*> byobReader(
+          cx, &unwrappedReader->as<ReadableStreamBYOBReader>());
+
+      // Let readIntoRequests be reader.[[readIntoRequests]].
+      ListObject* readIntoRequests = byobReader->requests();
+
+      // Set reader.[[readIntoRequests]] to an empty list.
+      byobReader->clearRequests();
+
+      // For each readIntoRequest of readIntoRequests,
+      uint32_t len = readIntoRequests->length();
+      Rooted<JSObject*> readRequest(cx);
+      Rooted<JSObject*> resultObj(cx);
+      Rooted<Value> resultVal(cx);
+      for (uint32_t i = 0; i < len; i++) {
+        // Perform readIntoRequest’s close steps, given undefined.
+        readRequest = &readIntoRequests->getAs<JSObject>(i);
+        resultObj = js::ReadableStreamCreateReadResult(
+            cx, UndefinedHandleValue, true, ForAuthorCodeBool::Yes);
+        if (!resultObj) {
+          return nullptr;
+        }
+        resultVal = ObjectValue(*resultObj);
+        if (!ResolvePromise(cx, readRequest, resultVal)) {
+          return nullptr;
+        }
+      }
+    }
+  }
+
   // Step 5: Let sourceCancelPromise be
   //         ! stream.[[readableStreamController]].[[CancelSteps]](reason).
   Rooted<ReadableStreamController*> unwrappedController(
@@ -159,7 +196,7 @@ static bool ReturnUndefined(JSContext* cx, unsigned argc, Value* vp) {
 
   // Step 6: Return the result of reacting to sourceCancelPromise with a
   //         fulfillment step that returns undefined.
-  Handle<PropertyName*> funName = cx->names().empty;
+  Handle<PropertyName*> funName = cx->names().empty_;
   Rooted<JSFunction*> returnUndefined(
       cx, NewNativeFunction(cx, ReturnUndefined, 0, funName,
                             gc::AllocKind::FUNCTION, GenericObject));
@@ -442,12 +479,36 @@ uint32_t js::ReadableStreamGetNumReadRequests(ReadableStream* stream) {
     return 0;
   }
 
-  return reader->requests()->length();
+  ListObject* requests = reader->requests();
+  if (!requests) {
+    return 0;
+  }
+  return requests->length();
 }
 
-// Streams spec, 3.5.11. ReadableStreamHasBYOBReader ( stream )
-//
-// Not implemented.
+/**
+ * Streams spec, 3.5.11. ReadableStreamHasBYOBReader ( stream )
+ */
+[[nodiscard]] bool js::ReadableStreamHasBYOBReader(
+    JSContext* cx, Handle<ReadableStream*> unwrappedStream, bool* result) {
+  MOZ_ASSERT(unwrappedStream);
+  // Step 1: Let reader be stream.[[reader]].
+  // Step 2: If reader is undefined, return false.
+  if (!unwrappedStream->hasReader()) {
+    *result = false;
+    return true;
+  }
+  Rooted<ReadableStreamReader*> unwrappedReader(
+      cx, UnwrapReaderFromStream(cx, unwrappedStream));
+  if (!unwrappedReader) {
+    return false;
+  }
+
+  // Step 3: If ! ReadableStreamBYOBReader(reader) is false, return false.
+  // Step 4: Return true.
+  *result = unwrappedReader->is<ReadableStreamBYOBReader>();
+  return true;
+}
 
 /**
  * Streams spec 3.5.12. ReadableStreamHasDefaultReader ( stream )

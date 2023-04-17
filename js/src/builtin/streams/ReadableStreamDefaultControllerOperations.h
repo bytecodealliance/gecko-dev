@@ -41,7 +41,7 @@ class ReadableStreamDefaultController;
     JSContext* cx, JS::Handle<ReadableStreamController*> unwrappedController);
 
 [[nodiscard]] extern bool ReadableStreamControllerShouldCallPull(
-    ReadableStreamController* unwrappedController);
+    JSContext* cx, ReadableStreamController* unwrappedController);
 
 extern void ReadableStreamControllerClearAlgorithms(
     JS::Handle<ReadableStreamController*> controller);

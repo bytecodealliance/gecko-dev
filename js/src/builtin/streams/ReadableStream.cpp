@@ -175,11 +175,26 @@ bool ReadableStream::constructor(JSContext* cx, unsigned argc, JS::Value* vp) {
     return false;
   }
   if (equal) {
-    // The rest of step 6 is unimplemented, since we don't support
-    // user-defined byte streams yet.
-    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
-                              JSMSG_READABLESTREAM_BYTES_TYPE_NOT_IMPLEMENTED);
-    return false;
+    // If strategy["size"] exists, throw a RangeError exception.
+    if (!size.isUndefined()) {
+      JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                JSMSG_READABLESTREAM_BYOB_SIZE);
+      return false;
+    }
+
+    double highWaterMark = 0;
+    if (!ValidateAndNormalizeHighWaterMark(cx, highWaterMarkVal, &highWaterMark,
+                                           0)) {
+      return false;
+    }
+
+    if (!SetUpReadableByteStreamControllerFromUnderlyingSource(
+            cx, stream, underlyingSource, highWaterMark)) {
+      return false;
+    }
+
+    args.rval().setObject(*stream);
+    return true;
   }
 
   // Step 7: Otherwise, if type is undefined,
@@ -197,7 +212,7 @@ bool ReadableStream::constructor(JSContext* cx, unsigned argc, JS::Value* vp) {
       // Step 7.c: Set highWaterMark to ?
       // ValidateAndNormalizeHighWaterMark(highWaterMark).
       if (!ValidateAndNormalizeHighWaterMark(cx, highWaterMarkVal,
-                                             &highWaterMark)) {
+                                             &highWaterMark, 1)) {
         return false;
       }
     }
