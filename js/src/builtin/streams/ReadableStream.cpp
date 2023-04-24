@@ -562,8 +562,7 @@ static bool FinishReadableStreamClassInit(JSContext* cx, Handle<JSObject*> ctor,
   //
   // when "pipeTo" is always enabled.
   const auto& rco = cx->realm()->creationOptions();
-  if (rco.getStreamsEnabled() && rco.getWritableStreamsEnabled() &&
-      rco.getReadableStreamPipeToEnabled()) {
+  if (rco.getStreamsEnabled()) {
     Rooted<jsid> pipeTo(cx, NameToId(cx->names().pipeTo));
     if (!DefineFunction(cx, proto, pipeTo, ReadableStream_pipeTo, 2,
                         JSPROP_RESOLVING | JSPROP_ENUMERATE)) {

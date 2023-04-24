@@ -57,9 +57,6 @@ using JS::Value;
  * Streams spec, 4.2.3. new WritableStream(underlyingSink = {}, strategy = {})
  */
 bool WritableStream::constructor(JSContext* cx, unsigned argc, Value* vp) {
-  MOZ_ASSERT(cx->realm()->creationOptions().getWritableStreamsEnabled(),
-             "WritableStream should be enabled in this realm if we reach here");
-
   CallArgs args = CallArgsFromVp(argc, vp);
 
   if (!ThrowIfNotConstructing(cx, args, "WritableStream")) {
