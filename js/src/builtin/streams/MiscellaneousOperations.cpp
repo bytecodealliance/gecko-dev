@@ -206,7 +206,7 @@ using JS::Value;
 
   // Step 2: If highWaterMark is NaN or highWaterMark < 0, throw a RangeError
   // exception.
-  if (mozilla::IsNaN(*highWaterMark) || *highWaterMark < 0) {
+  if (std::isnan(*highWaterMark) || *highWaterMark < 0) {
     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
                               JSMSG_STREAM_INVALID_HIGHWATERMARK);
     return false;
