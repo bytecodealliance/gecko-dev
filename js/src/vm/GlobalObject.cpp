@@ -236,20 +236,13 @@ bool GlobalObject::skipDeselectedConstructor(JSContext* cx, JSProtoKey key) {
     case JSProto_ReadableStreamDefaultController:
     case JSProto_ByteLengthQueuingStrategy:
     case JSProto_CountQueuingStrategy:
-      return !cx->realm()->creationOptions().getStreamsEnabled();
     case JSProto_ReadableStreamBYOBReader:
     case JSProto_ReadableStreamBYOBRequest:
-      return !cx->realm()->creationOptions().getReadableByteStreamsEnabled();
     case JSProto_ReadableByteStreamController:
-      return !cx->realm()->creationOptions().getBYOBStreamReadersEnabled();
-
     case JSProto_WritableStream:
     case JSProto_WritableStreamDefaultController:
-    case JSProto_WritableStreamDefaultWriter: {
-      const auto& realmOptions = cx->realm()->creationOptions();
-      return !realmOptions.getStreamsEnabled() ||
-             !realmOptions.getWritableStreamsEnabled();
-    }
+    case JSProto_WritableStreamDefaultWriter:
+      return !cx->realm()->creationOptions().getStreamsEnabled();
 #endif
 
 #ifdef JS_HAS_TEMPORAL_API

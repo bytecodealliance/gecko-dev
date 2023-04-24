@@ -185,30 +185,6 @@ class JS_PUBLIC_API RealmCreationOptions {
     return *this;
   }
 
-  bool getReadableByteStreamsEnabled() const { return readableByteStreams_; }
-  RealmCreationOptions& setReadableByteStreamsEnabled(bool flag) {
-    readableByteStreams_ = flag;
-    return *this;
-  }
-
-  bool getBYOBStreamReadersEnabled() const { return byobStreamReaders_; }
-  RealmCreationOptions& setBYOBStreamReadersEnabled(bool enabled) {
-    byobStreamReaders_ = enabled;
-    return *this;
-  }
-
-  bool getWritableStreamsEnabled() const { return writableStreams_; }
-  RealmCreationOptions& setWritableStreamsEnabled(bool enabled) {
-    writableStreams_ = enabled;
-    return *this;
-  }
-
-  bool getReadableStreamPipeToEnabled() const { return readableStreamPipeTo_; }
-  RealmCreationOptions& setReadableStreamPipeToEnabled(bool enabled) {
-    readableStreamPipeTo_ = enabled;
-    return *this;
-  }
-
   bool getToSourceEnabled() const { return toSource_; }
   RealmCreationOptions& setToSourceEnabled(bool flag) {
     toSource_ = flag;
@@ -275,10 +251,6 @@ class JS_PUBLIC_API RealmCreationOptions {
   bool defineSharedArrayBufferConstructor_ = true;
   bool coopAndCoep_ = false;
   bool streams_ = false;
-  bool readableByteStreams_ = false;
-  bool byobStreamReaders_ = false;
-  bool writableStreams_ = false;
-  bool readableStreamPipeTo_ = false;
   bool toSource_ = false;
 
   bool secureContext_ = false;
