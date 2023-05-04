@@ -36,3 +36,7 @@ SOURCES += [
 
 # Suppress warnings in third-party code.
 SOURCES["DoubleToString.cpp"].flags += ["-Wno-implicit-fallthrough"]
+
+LOCAL_INCLUDES += [
+    "/third_party/weval",
+]

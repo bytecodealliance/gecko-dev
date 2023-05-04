@@ -30,3 +30,7 @@ with Files("public/**"):
     SCHEDULES.inclusive += ["jittest", "jsreftest"]
 
 SPHINX_TREES["/js"] = "src/doc"
+
+LOCAL_INCLUDES += [
+    "/third_party/weval",
+]

@@ -29,3 +29,7 @@ UNIFIED_SOURCES = [
     "Script.cpp",
     "Source.cpp",
 ]
+
+LOCAL_INCLUDES += [
+    "/third_party/weval",
+]

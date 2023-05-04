@@ -1242,6 +1242,18 @@ set_define(
     depends_if("--enable-js-interp-specialization")(lambda x: True),
 )
 
+
+option(
+    "--enable-js-interp-weval",
+    default=False,
+    help="{Enable|Disable} annotations for weval, the WebAssembly partial evaluator",
+)
+
+set_define(
+    "ENABLE_JS_INTERP_WEVAL",
+    depends_if("--enable-js-interp-weval")(lambda x: True),
+)
+
 # Enable change-array-by-copy
 # ===================================================
 

@@ -96,3 +96,7 @@ SOURCES += [
 
 if CONFIG["FUZZING_INTERFACES"] and CONFIG["LIBFUZZER"]:
     include("/tools/fuzzing/libfuzzer-config.mozbuild")
+
+LOCAL_INCLUDES += [
+    "/third_party/weval",
+]

@@ -47,3 +47,7 @@ if CONFIG["JS_HAS_INTL_API"]:
 # coverage instrumentation in FUZZING mode.
 if CONFIG["FUZZING_INTERFACES"] and CONFIG["LIBFUZZER"]:
     include("/tools/fuzzing/libfuzzer-config.mozbuild")
+
+LOCAL_INCLUDES += [
+    "/third_party/weval",
+]
