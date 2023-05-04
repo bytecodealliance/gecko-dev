@@ -2032,6 +2032,39 @@ struct InterpretContext {
 };
 
 /*
+ * Kind of invocation to InterpretInner (defined below). This function
+ * can be invoked in a "specialized" mode, such that execution will
+ * only remain in that frame while the PC is statically known and will
+ * call out to a "generic" invocation if an error or other condition
+ * occurs; or a "generic" mode, which can perform any kind of
+ * interpretation.
+ *
+ * This is mainly useful for partial specialization tools that operate
+ * on the interpreter body. When partially specialized, these
+ * "bailouts" to generic invocations allow such a tool to avoid the
+ * need for runtime dispatch based on PC.
+ */
+enum class InterpretEntryKind {
+  // Perform interpretation from the start of the function, but bail
+  // out to one of the other entry kinds if PC becomes unknown
+  // statically.
+  Specialized,
+  // Perform interpretation from the start of the function.
+  Generic,
+  // On entry, dispatch straight to the `error:` label.
+  ErrorBailout,
+  // On entry, interpret starting from the middle of the function
+  // (i.e., without performing the prologue).
+  InterpretBailout,
+};
+
+#if ENABLE_JS_INTERP_SPECIALIZATION
+const auto DefaultInterpretEntryKind = InterpretEntryKind::Specialized;
+#else
+const auto DefaultInterpretEntryKind = InterpretEntryKind::Generic;
+#endif
+
+/*
  * Inner function that contains the interpreter loop and executes it for a
  * single JS callframe, or (if the inline-call optimization is active) across
  * contiguous pure-JS callframes.
@@ -2042,7 +2075,8 @@ struct InterpretContext {
  * such as partial interpreter specialization.
  */
 static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
-    JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc);
+    JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc,
+    InterpretEntryKind entryKind);
 
 #define SET_SCRIPT(s)                                         \
   JS_BEGIN_MACRO                                              \
@@ -2065,11 +2099,12 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
   InterpretContext ictx(cx, state, entryFrame);
   SET_SCRIPT(ictx.activation.regs().fp()->script());
 
-  return InterpretInner(cx, state, ictx, REGS.pc);
+  return InterpretInner(cx, state, ictx, REGS.pc, DefaultInterpretEntryKind);
 }
 
 static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
-    JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc) {
+    JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc,
+    InterpretEntryKind entryKind) {
 /*
  * Define macros for an interpreter loop. Opcode dispatch is done by
  * indirect goto (aka a threaded interpreter), which is technically
@@ -2206,6 +2241,28 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
     JS_END_MACRO
 #endif
 
+#define BAIL_IF_SPECIALIZED(kind)                         \
+  JS_BEGIN_MACRO                                          \
+    if (specialized) {                                    \
+      return InterpretInner(cx, state, ictx, pc, (kind)); \
+    }                                                     \
+  JS_END_MACRO
+
+  bool specialized = false;
+#ifdef ENABLE_JS_INTERP_SPECIALIZATION
+  switch (entryKind) {
+    case InterpretEntryKind::Specialized:
+      specialized = true;
+      break;
+    case InterpretEntryKind::Generic:
+      break;
+    case InterpretEntryKind::ErrorBailout:
+      goto error;
+    case InterpretEntryKind::InterpretBailout:
+      goto initial_dispatch;
+  }
+#endif  // ENABLE_JS_INTERP_SPECIALIZATION
+
   if (!REGS.fp()->prologue(cx)) {
     goto prologue_error;
   }
@@ -2218,6 +2275,7 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
   INIT_COVERAGE();
   COUNT_COVERAGE_MAIN();
 
+initial_dispatch:
   // Enter the interpreter loop starting at the current pc.
   ADVANCE_AND_DISPATCH(0);
 
@@ -2420,6 +2478,7 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
         /* Resume execution in the calling frame. */
         if (MOZ_LIKELY(ictx.interpReturnOK)) {
           if (JSOp(*pc) == JSOp::Resume) {
+            BAIL_IF_SPECIALIZED(InterpretEntryKind::InterpretBailout);
             pc = REGS.pc;
             ADVANCE_AND_DISPATCH(JSOpLength_Resume);
           }
@@ -3540,7 +3599,8 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
       SET_SCRIPT(REGS.fp()->script());
 
 #ifdef ENABLE_JS_INTERP_NATIVE_CALLSTACK
-      if (!InterpretInner(cx, state, ictx, REGS.pc)) {
+      if (!InterpretInner(cx, state, ictx, REGS.pc,
+                          DefaultInterpretEntryKind)) {
         goto error;
       }
       ADVANCE_AND_DISPATCH(JSOpLength_Call);
@@ -4460,6 +4520,8 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
 
     CASE(Yield)
     CASE(Await) {
+      BAIL_IF_SPECIALIZED(InterpretEntryKind::InterpretBailout);
+
       MOZ_ASSERT(!cx->isExceptionPending());
       MOZ_ASSERT_IF(ictx.script->isModule() && ictx.script->isAsync(),
                     REGS.fp()->isModuleFrame());
@@ -4502,6 +4564,8 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
 
     CASE(Resume) {
       {
+        BAIL_IF_SPECIALIZED(InterpretEntryKind::InterpretBailout);
+
         Rooted<AbstractGeneratorObject*> gen(
             cx, &REGS.sp[-3].toObject().as<AbstractGeneratorObject>());
         ReservedRooted<Value> val(&ictx.rootValue0, REGS.sp[-2]);
@@ -4744,6 +4808,8 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
   MOZ_CRASH("Interpreter loop exited via fallthrough");
 
 error:
+  BAIL_IF_SPECIALIZED(InterpretEntryKind::ErrorBailout);
+
   MOZ_ASSERT(pc == REGS.pc);
   switch (HandleError(cx, REGS)) {
     case SuccessfulReturnContinuation:

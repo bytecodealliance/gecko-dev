@@ -1231,6 +1231,17 @@ set_define(
     depends_if("--enable-js-interp-native-callstack")(lambda x: True),
 )
 
+option(
+    "--enable-js-interp-specialization",
+    default=False,
+    help="{Enable|Disable} separate C++ activations for portion of JS interpretation where PC is statically known",
+)
+
+set_define(
+    "ENABLE_JS_INTERP_SPECIALIZATION",
+    depends_if("--enable-js-interp-specialization")(lambda x: True),
+)
+
 # Enable change-array-by-copy
 # ===================================================
 
