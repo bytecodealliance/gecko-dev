@@ -2081,13 +2081,20 @@ const auto DefaultInterpretEntryKind = InterpretEntryKind::Generic;
  */
 static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
     JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc,
-    InterpretEntryKind entryKind);
+    ImmutableScriptData* isd, InterpretEntryKind entryKind);
+
+#ifdef ENABLE_JS_INTERP_SPECIALIZATION
+static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInnerBailout(
+    JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc,
+    ImmutableScriptData* isd, InterpretEntryKind entryKind);
+#endif
 
 // The type of function pointer to a partial specialization of
 // `InterpretInner()`.
 using PartiallySpecializedInterpretInner = bool (*)(JSContext*, RunState&,
                                                     InterpretContext&,
                                                     jsbytecode*,
+                                                    ImmutableScriptData*,
                                                     InterpretEntryKind);
 
 #ifdef ENABLE_JS_INTERP_WEVAL
@@ -2101,6 +2108,7 @@ weval_req_t* js::RegisterInterpreterSpecialization(void** specialized,
       reinterpret_cast<PartiallySpecializedInterpretInner*>(specialized),
       InterpretInner, weval::Runtime<JSContext*>(), weval::Runtime<RunState&>(),
       weval::Runtime<InterpretContext&>(), weval::Specialize<jsbytecode*>(pc),
+      weval::Specialize<ImmutableScriptData*>(isd),
       weval::Specialize<uint32_t>(
           static_cast<uint32_t>(InterpretEntryKind::Specialized)));
 }
@@ -2115,6 +2123,30 @@ weval_req_t* js::RegisterInterpreterSpecialization(void** specialized,
       ictx.activation.enableInterruptsUnconditionally();      \
   JS_END_MACRO
 
+#ifdef ENABLE_JS_INTERP_WEVAL
+#  define CALL_INNER(ret)                                                      \
+    JS_BEGIN_MACRO                                                             \
+      if (void* f = ictx.script->immutableScriptData()->specializedCode()) {   \
+        PartiallySpecializedInterpretInner func =                              \
+            reinterpret_cast<PartiallySpecializedInterpretInner>(f);           \
+        (ret) =                                                                \
+            func(cx, state, ictx, REGS.pc, ictx.script->immutableScriptData(), \
+                 InterpretEntryKind::Specialized);                             \
+      } else {                                                                 \
+        (ret) = InterpretInner(cx, state, ictx, REGS.pc,                       \
+                               ictx.script->immutableScriptData(),             \
+                               DefaultInterpretEntryKind);                     \
+      }                                                                        \
+    JS_END_MACRO
+#else
+#  define CALL_INNER(ret)                                  \
+    JS_BEGIN_MACRO(ret)                                    \
+      = InterpretInner(cx, state, ictx, REGS.pc,           \
+                       ictx.script->immutableScriptData(), \
+                       DefaultInterpretEntryKind);         \
+    JS_END_MACRO
+#endif
+
 bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
                                                            RunState& state) {
   gc::MaybeVerifyBarriers(cx, true);
@@ -2127,12 +2159,14 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
   InterpretContext ictx(cx, state, entryFrame);
   SET_SCRIPT(ictx.activation.regs().fp()->script());
 
-  return InterpretInner(cx, state, ictx, REGS.pc, DefaultInterpretEntryKind);
+  bool ret;
+  CALL_INNER(ret);
+  return ret;
 }
 
 static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
     JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc,
-    InterpretEntryKind entryKind) {
+    ImmutableScriptData* isd, InterpretEntryKind entryKind) {
 /*
  * Define macros for an interpreter loop. Opcode dispatch is done by
  * indirect goto (aka a threaded interpreter), which is technically
@@ -2142,7 +2176,18 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
 #define CASE(OP) label_##OP:
 #define DEFAULT() \
   label_default:
-#define DISPATCH_TO(OP) goto* addresses[(OP)]
+
+#ifndef ENABLE_JS_INTERP_WEVAL
+#  define DISPATCH_TO(OP) goto* addresses[(OP)]
+#else
+#  define DISPATCH_TO(OP)                                   \
+    JS_BEGIN_MACRO                                          \
+      WEVAL_CONTEXT(pc);                                    \
+      auto* addresses_table =                               \
+          weval::assume_const_memory_transitive(addresses); \
+      goto* addresses_table[(OP)];                          \
+    JS_END_MACRO
+#endif
 
 #define LABEL(X) (&&label_##X)
 
@@ -2175,14 +2220,27 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
    * will enable interrupts, and activation.opMask() is or'd with the opcode
    * to implement a simple alternate dispatch.
    */
-#define ADVANCE_AND_DISPATCH(N)                  \
-  JS_BEGIN_MACRO                                 \
-    MOZ_ASSERT(REGS.pc == pc);                   \
-    pc += (N);                                   \
-    REGS.pc = pc;                                \
-    SANITY_CHECKS();                             \
-    DISPATCH_TO(*pc | ictx.activation.opMask()); \
+#define ADVANCE_AND_DISPATCH(N)      \
+  JS_BEGIN_MACRO                     \
+    MOZ_ASSERT(REGS.pc == pc);       \
+    pc += (N);                       \
+    REGS.pc = pc;                    \
+    SANITY_CHECKS();                 \
+    DISPATCH_TO(*pc | OPMASK(ictx)); \
   JS_END_MACRO
+
+#ifdef ENABLE_JS_INTERP_WEVAL
+#  define WEVAL_CONTEXT(pc) \
+    weval::update_context(reinterpret_cast<uint32_t>(pc));
+#else
+#  define WEVAL_CONTEXT(pc)
+#endif
+
+#ifndef ENABLE_JS_INTERP_WEVAL
+#  define OPMASK(ictx) ictx.activation.opMask()
+#else
+#  define OPMASK(ictx) 0
+#endif
 
   /*
    * Shorthand for the common sequence at the end of a fixed-size opcode.
@@ -2193,10 +2251,14 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
    * Prepare to call a user-supplied branch handler, and abort the script
    * if it returns false.
    */
-#define CHECK_BRANCH()                      \
-  JS_BEGIN_MACRO                            \
-    if (!CheckForInterrupt(cx)) goto error; \
-  JS_END_MACRO
+#ifndef ENABLE_JS_INTERP_WEVAL
+#  define CHECK_BRANCH()                      \
+    JS_BEGIN_MACRO                            \
+      if (!CheckForInterrupt(cx)) goto error; \
+    JS_END_MACRO
+#else
+#  define CHECK_BRANCH()
+#endif
 
   /*
    * This is a simple wrapper around ADVANCE_AND_DISPATCH which also does
@@ -2213,43 +2275,52 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
   /*
    * Initialize code coverage vectors.
    */
-#define INIT_COVERAGE()                                     \
-  JS_BEGIN_MACRO                                            \
-    if (!ictx.script->hasScriptCounts()) {                  \
-      if (cx->realm()->collectCoverageForDebug()) {         \
-        if (!ictx.script->initScriptCounts(cx)) goto error; \
-      }                                                     \
-    }                                                       \
-  JS_END_MACRO
+#ifndef ENABLE_JS_INTERP_WEVAL
+#  define INIT_COVERAGE()                                     \
+    JS_BEGIN_MACRO                                            \
+      if (!ictx.script->hasScriptCounts()) {                  \
+        if (cx->realm()->collectCoverageForDebug()) {         \
+          if (!ictx.script->initScriptCounts(cx)) goto error; \
+        }                                                     \
+      }                                                       \
+    JS_END_MACRO
 
   /*
    * Increment the code coverage counter associated with the given pc.
    */
-#define COUNT_COVERAGE_PC(PC)                               \
-  JS_BEGIN_MACRO                                            \
-    if (ictx.script->hasScriptCounts()) {                   \
-      PCCounts* counts = ictx.script->maybeGetPCCounts(PC); \
-      MOZ_ASSERT(counts);                                   \
-      counts->numExec()++;                                  \
-    }                                                       \
-  JS_END_MACRO
+#  define COUNT_COVERAGE_PC(PC)                               \
+    JS_BEGIN_MACRO                                            \
+      if (ictx.script->hasScriptCounts()) {                   \
+        PCCounts* counts = ictx.script->maybeGetPCCounts(PC); \
+        MOZ_ASSERT(counts);                                   \
+        counts->numExec()++;                                  \
+      }                                                       \
+    JS_END_MACRO
 
-#define COUNT_COVERAGE_MAIN()                                        \
-  JS_BEGIN_MACRO                                                     \
-    jsbytecode* main = ictx.script->main();                          \
-    if (!BytecodeIsJumpTarget(JSOp(*main))) COUNT_COVERAGE_PC(main); \
-  JS_END_MACRO
+#  define COUNT_COVERAGE_MAIN()                                        \
+    JS_BEGIN_MACRO                                                     \
+      jsbytecode* main = ictx.script->main();                          \
+      if (!BytecodeIsJumpTarget(JSOp(*main))) COUNT_COVERAGE_PC(main); \
+    JS_END_MACRO
 
-#define COUNT_COVERAGE()                         \
-  JS_BEGIN_MACRO                                 \
-    MOZ_ASSERT(BytecodeIsJumpTarget(JSOp(*pc))); \
-    COUNT_COVERAGE_PC(pc);                       \
-  JS_END_MACRO
+#  define COUNT_COVERAGE()                         \
+    JS_BEGIN_MACRO                                 \
+      MOZ_ASSERT(BytecodeIsJumpTarget(JSOp(*pc))); \
+      COUNT_COVERAGE_PC(pc);                       \
+    JS_END_MACRO
 
-#define SANITY_CHECKS()              \
-  JS_BEGIN_MACRO                     \
-    js::gc::MaybeVerifyBarriers(cx); \
-  JS_END_MACRO
+#  define SANITY_CHECKS()              \
+    JS_BEGIN_MACRO                     \
+      js::gc::MaybeVerifyBarriers(cx); \
+    JS_END_MACRO
+
+#else
+#  define INIT_COVERAGE()
+#  define COUNT_COVERAGE_PC(pc)
+#  define COUNT_COVERAGE_MAIN()
+#  define COUNT_COVERAGE()
+#  define SANITY_CHECKS()
+#endif
 
 // Verify that an uninitialized lexical is followed by a correct check op.
 #ifdef DEBUG
@@ -2269,19 +2340,23 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
     JS_END_MACRO
 #endif
 
-#define BAIL_IF_SPECIALIZED(kind)                         \
-  JS_BEGIN_MACRO                                          \
-    if (specialized) {                                    \
-      return InterpretInner(cx, state, ictx, pc, (kind)); \
-    }                                                     \
-  JS_END_MACRO
+#ifdef ENABLE_JS_INTERP_SPECIALIZATION
+#  define BAIL_IF_SPECIALIZED(kind)                                     \
+    JS_BEGIN_MACRO                                                      \
+      if (entryKind == InterpretEntryKind::Specialized) {               \
+        return InterpretInnerBailout(cx, state, ictx, pc, isd, (kind)); \
+      }                                                                 \
+      weval_abort_specialization(__LINE__, 1);                          \
+    JS_END_MACRO
+#else
+#  define BAIL_IF_SPECIALIZED(kind) \
+    JS_BEGIN_MACRO                  \
+    JS_END_MACRO
+#endif
 
-  bool specialized = false;
 #ifdef ENABLE_JS_INTERP_SPECIALIZATION
   switch (entryKind) {
     case InterpretEntryKind::Specialized:
-      specialized = true;
-      break;
     case InterpretEntryKind::Generic:
       break;
     case InterpretEntryKind::ErrorBailout:
@@ -2290,6 +2365,11 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
       goto initial_dispatch;
   }
 #endif  // ENABLE_JS_INTERP_SPECIALIZATION
+
+#ifdef ENABLE_JS_INTERP_WEVAL
+  pc = weval::assume_const_memory(pc);
+  isd = weval::assume_const_memory(isd);
+#endif
 
   if (!REGS.fp()->prologue(cx)) {
     goto prologue_error;
@@ -2303,16 +2383,21 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
   INIT_COVERAGE();
   COUNT_COVERAGE_MAIN();
 
+#ifdef ENABLE_JS_INTERP_WEVAL
+  weval::push_context(reinterpret_cast<uint32_t>(pc));
 initial_dispatch:
+#endif
+
   // Enter the interpreter loop starting at the current pc.
   ADVANCE_AND_DISPATCH(0);
 
   INTERPRETER_LOOP() {
     CASE(EnableInterruptsPseudoOpcode) {
       MOZ_ASSERT(REGS.pc == pc);
-      bool moreInterrupts = false;
       jsbytecode op = *pc;
 
+#ifndef ENABLE_JS_INTERP_WEVAL
+      bool moreInterrupts = false;
       if (!ictx.script->hasScriptCounts() &&
           cx->realm()->collectCoverageForDebug()) {
         if (!ictx.script->initScriptCounts(cx)) {
@@ -2343,6 +2428,7 @@ initial_dispatch:
       if (!moreInterrupts) {
         ictx.activation.clearInterruptsMask();
       }
+#endif
 
       /* Commence executing the actual opcode. */
       SANITY_CHECKS();
@@ -2498,7 +2584,9 @@ initial_dispatch:
           pc = REGS.pc;
         }
 
+#ifndef ENABLE_JS_INTERP_WEVAL
       jit_return:
+#endif
 
         MOZ_ASSERT(IsInvokePC(pc));
         MOZ_ASSERT(cx->realm() == ictx.script->realm());
@@ -2592,20 +2680,26 @@ initial_dispatch:
     if (!ToPropertyKey(cx, REGS.stackHandleAt(n), &(id))) goto error; \
   JS_END_MACRO
 
-#define TRY_BRANCH_AFTER_COND(cond, spdec)                                  \
-  JS_BEGIN_MACRO                                                            \
-    MOZ_ASSERT(GetBytecodeLength(pc) == 1);                                 \
-    unsigned diff_ = (unsigned)GET_UINT8(pc) - (unsigned)JSOp::JumpIfFalse; \
-    if (diff_ <= 1) {                                                       \
-      REGS.sp -= (spdec);                                                   \
-      if ((cond) == (diff_ != 0)) {                                         \
-        ++pc;                                                               \
-        REGS.pc = pc;                                                       \
-        BRANCH(GET_JUMP_OFFSET(pc));                                        \
-      }                                                                     \
-      ADVANCE_AND_DISPATCH(1 + JSOpLength_JumpIfFalse);                     \
-    }                                                                       \
-  JS_END_MACRO
+#ifndef ENABLE_JS_INTERP_WEVAL
+#  define TRY_BRANCH_AFTER_COND(cond, spdec)                                  \
+    JS_BEGIN_MACRO                                                            \
+      MOZ_ASSERT(GetBytecodeLength(pc) == 1);                                 \
+      unsigned diff_ = (unsigned)GET_UINT8(pc) - (unsigned)JSOp::JumpIfFalse; \
+      if (diff_ <= 1) {                                                       \
+        REGS.sp -= (spdec);                                                   \
+        if ((cond) == (diff_ != 0)) {                                         \
+          ++pc;                                                               \
+          REGS.pc = pc;                                                       \
+          BRANCH(GET_JUMP_OFFSET(pc));                                        \
+        }                                                                     \
+        ADVANCE_AND_DISPATCH(1 + JSOpLength_JumpIfFalse);                     \
+      }                                                                       \
+    JS_END_MACRO
+#else  // ENABLE_JS_INTERP_WEVAL
+#  define TRY_BRANCH_AFTER_COND(cond, spdec) \
+    JS_BEGIN_MACRO                           \
+    JS_END_MACRO
+#endif  // !ENABLE_JS_INTERP_WEVAL
 
     CASE(In) {
       HandleValue rref = REGS.stackHandleAt(-1);
@@ -3583,6 +3677,7 @@ initial_dispatch:
           goto error;
         }
 
+#ifndef ENABLE_JS_INTERP_WEVAL
         {
           InvokeState state(cx, args, construct);
 
@@ -3599,7 +3694,7 @@ initial_dispatch:
               break;
           }
 
-#ifdef NIGHTLY_BUILD
+#  ifdef NIGHTLY_BUILD
           // If entry trampolines are enabled, call back into
           // MaybeEnterInterpreterTrampoline so we can generate an
           // entry trampoline for the new frame.
@@ -3612,8 +3707,9 @@ initial_dispatch:
             }
             goto error;
           }
-#endif
+#  endif  // NIGHTLY_BUILD
         }
+#endif  // !ENABLE_JS_INTERP_WEVAL
 
         funScript = fun->nonLazyScript();
 
@@ -3627,8 +3723,9 @@ initial_dispatch:
       SET_SCRIPT(REGS.fp()->script());
 
 #ifdef ENABLE_JS_INTERP_NATIVE_CALLSTACK
-      if (!InterpretInner(cx, state, ictx, REGS.pc,
-                          DefaultInterpretEntryKind)) {
+      bool ret;
+      CALL_INNER(ret);
+      if (!ret) {
         goto error;
       }
       ADVANCE_AND_DISPATCH(JSOpLength_Call);
@@ -3834,9 +3931,12 @@ initial_dispatch:
       int32_t high = GET_JUMP_OFFSET(pc2);
 
       i = uint32_t(i) - uint32_t(low);
+#ifdef ENABLE_JS_INTERP_WEVAL
+      i = (int32_t)weval_specialize_value((uint32_t)i, (uint32_t)0,
+                                          (uint32_t)(high - low + 1));
+#endif
       if (uint32_t(i) < uint32_t(high - low + 1)) {
-        len = ictx.script->tableSwitchCaseOffset(pc, uint32_t(i)) -
-              ictx.script->pcToOffset(pc);
+        len = isd->tableSwitchCaseOffset(pc, uint32_t(i)) - isd->pcToOffset(pc);
       }
       ADVANCE_AND_DISPATCH(len);
     }
@@ -4530,6 +4630,8 @@ initial_dispatch:
     END_CASE(Generator)
 
     CASE(InitialYield) {
+      BAIL_IF_SPECIALIZED(InterpretEntryKind::InterpretBailout);
+
       MOZ_ASSERT(!cx->isExceptionPending());
       MOZ_ASSERT_IF(ictx.script->isModule() && ictx.script->isAsync(),
                     REGS.fp()->isModuleFrame());
@@ -4836,6 +4938,9 @@ initial_dispatch:
   MOZ_CRASH("Interpreter loop exited via fallthrough");
 
 error:
+#ifdef ENABLE_JS_INTERP_WEVAL
+  weval::pop_context();
+#endif
   BAIL_IF_SPECIALIZED(InterpretEntryKind::ErrorBailout);
 
   MOZ_ASSERT(pc == REGS.pc);
@@ -4898,10 +5003,19 @@ leave_on_safe_point:
   return ictx.interpReturnOK;
 
 prologue_error:
+  BAIL_IF_SPECIALIZED(InterpretEntryKind::ErrorBailout);
   ictx.interpReturnOK = false;
   ictx.frameHalfInitialized = true;
   goto prologue_return_continuation;
 }
+
+#ifdef ENABLE_JS_INTERP_SPECIALIZATION
+static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInnerBailout(
+    JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc,
+    ImmutableScriptData* isd, InterpretEntryKind entryKind) {
+  return InterpretInner(cx, state, ictx, pc, isd, entryKind);
+}
+#endif
 
 bool js::ThrowOperation(JSContext* cx, HandleValue v) {
   MOZ_ASSERT(!cx->isExceptionPending());
