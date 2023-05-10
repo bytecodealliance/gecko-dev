@@ -78,6 +78,7 @@
 #include "vm/ObjectOperations-inl.h"
 #include "vm/PlainObject-inl.h"  // js::CopyInitializerObject, js::CreateThis
 #include "vm/Probes-inl.h"
+#include "vm/SharedStencil-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;
