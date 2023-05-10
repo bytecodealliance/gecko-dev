@@ -31,6 +31,10 @@
 #include "vm/GeneratorAndAsyncKind.h"  // GeneratorKind, FunctionAsyncKind
 #include "vm/StencilEnums.h"  // js::{TryNoteKind,ImmutableScriptFlagsEnum,MutableScriptFlagsEnum}
 
+#ifdef ENABLE_JS_INTERP_WEVAL
+#  include <weval.h>
+#endif
+
 //
 // Data structures shared between Stencil and the VM.
 //
@@ -422,6 +426,18 @@ class MutableScriptFlags : public EnumFlags<MutableScriptFlagsEnum> {
 // notable exception is that bytecode length is stored explicitly.
 class alignas(uint32_t) ImmutableScriptData final : public TrailingArray {
  private:
+#ifdef ENABLE_JS_INTERP_WEVAL
+  // Partially-pecialized interpreter body, if any. Note that we need
+  // to box this so that it doesn't move. This pointer comes first so
+  // we can exclide it from hashing.
+  void** specialized_ = nullptr;
+
+  // The weval specialization request, so that we may cancel it if
+  // this script is freed.
+  weval_req_t* weval_req_ = nullptr;
+#endif
+
+ private:
   Offset optArrayOffset_ = 0;
 
   // Length of bytecode
@@ -567,8 +583,15 @@ class alignas(uint32_t) ImmutableScriptData final : public TrailingArray {
 
   // Span over all raw bytes in this struct and its trailing arrays.
   mozilla::Span<const uint8_t> immutableData() const {
-    size_t allocSize = endOffset();
-    return mozilla::Span{reinterpret_cast<const uint8_t*>(this), allocSize};
+#ifdef ENABLE_JS_INTERP_WEVAL
+    size_t specializedSize = sizeof(void**) + sizeof(weval_req_t*);
+#else
+    size_t specializedSize = 0;
+#endif
+    size_t allocSize = endOffset() - specializedSize;
+    return mozilla::Span{
+        reinterpret_cast<const uint8_t*>(this) + specializedSize,
+        allocSize - specializedSize};
   }
 
  private:
@@ -622,6 +645,24 @@ class alignas(uint32_t) ImmutableScriptData final : public TrailingArray {
     return offsetof(ImmutableScriptData, funLength);
   }
 
+#ifdef ENABLE_JS_INTERP_WEVAL
+  void* specializedCode() {
+    if (specialized_) {
+      return *specialized_;
+    }
+    return nullptr;
+  }
+
+  weval_req_t* wevalReq() { return weval_req_; }
+
+  void releaseWevalState() {
+    if (weval_req_) {
+      weval::free(weval_req_);
+    }
+    js_delete(specialized_);
+  }
+#endif
+
   uint32_t tableSwitchCaseOffset(jsbytecode* pc, uint32_t caseIndex);
   jsbytecode* tableSwitchCasePC(jsbytecode* pc, uint32_t caseIndex);
   jsbytecode* offsetToPC(size_t offset);
@@ -671,6 +712,9 @@ class SharedImmutableScriptData {
 
   void reset() {
     if (isd_ && !isExternal()) {
+#ifdef ENABLE_JS_INTERP_WEVAL
+      isd_->releaseWevalState();
+#endif
       js_delete(isd_);
     }
     isd_ = nullptr;
