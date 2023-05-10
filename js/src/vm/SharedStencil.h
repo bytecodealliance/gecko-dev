@@ -671,6 +671,9 @@ class alignas(uint32_t) ImmutableScriptData final : public TrailingArray {
   // ImmutableScriptData has trailing data so isn't copyable or movable.
   ImmutableScriptData(const ImmutableScriptData&) = delete;
   ImmutableScriptData& operator=(const ImmutableScriptData&) = delete;
+
+ private:
+  bool RequestSpecialization(FrontendContext* fc);
 };
 
 // Wrapper type for ImmutableScriptData to allow sharing across a JSRuntime.

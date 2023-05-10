@@ -390,6 +390,21 @@ ImmutableScriptData::ImmutableScriptData(uint32_t codeLength,
   MOZ_ASSERT(endOffset() == cursor);
 }
 
+bool ImmutableScriptData::RequestSpecialization(FrontendContext* fc) {
+#ifdef ENABLE_JS_INTERP_WEVAL
+  // Register specialization request for interpreter partial
+  // specialization.
+  this->specialized_ = fc->getAllocator()->pod_malloc<void*>(1);
+  if (!this->specialized_) {
+    return false;
+  }
+  *this->specialized_ = nullptr;
+  this->weval_req_ =
+      RegisterInterpreterSpecialization(this->specialized_, this, this->code());
+#endif
+  return true;
+}
+
 void js::FillImmutableFlagsFromCompileOptionsForTopLevel(
     const ReadOnlyCompileOptions& options, ImmutableScriptFlags& flags) {
   using ImmutableFlags = ImmutableScriptFlagsEnum;
@@ -2062,6 +2077,10 @@ js::UniquePtr<ImmutableScriptData> js::ImmutableScriptData::new_(
   UniquePtr<ImmutableScriptData> result(new (raw) ImmutableScriptData(
       codeLength, noteLength, numResumeOffsets, numScopeNotes, numTryNotes));
   if (!result) {
+    return nullptr;
+  }
+
+  if (!result->RequestSpecialization(fc)) {
     return nullptr;
   }
 

@@ -81,6 +81,10 @@
 #include "vm/SharedStencil-inl.h"
 #include "vm/Stack-inl.h"
 
+#ifdef ENABLE_JS_INTERP_WEVAL
+#  include <weval.h>
+#endif
+
 using namespace js;
 
 using mozilla::DebugOnly;
@@ -2045,7 +2049,7 @@ struct InterpretContext {
  * "bailouts" to generic invocations allow such a tool to avoid the
  * need for runtime dispatch based on PC.
  */
-enum class InterpretEntryKind {
+enum class InterpretEntryKind : uint32_t {
   // Perform interpretation from the start of the function, but bail
   // out to one of the other entry kinds if PC becomes unknown
   // statically.
@@ -2078,6 +2082,29 @@ const auto DefaultInterpretEntryKind = InterpretEntryKind::Generic;
 static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
     JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc,
     InterpretEntryKind entryKind);
+
+// The type of function pointer to a partial specialization of
+// `InterpretInner()`.
+using PartiallySpecializedInterpretInner = bool (*)(JSContext*, RunState&,
+                                                    InterpretContext&,
+                                                    jsbytecode*,
+                                                    InterpretEntryKind);
+
+#ifdef ENABLE_JS_INTERP_WEVAL
+
+WEVAL_DEFINE_REQ_LIST();
+
+weval_req_t* js::RegisterInterpreterSpecialization(void** specialized,
+                                                   ImmutableScriptData* isd,
+                                                   jsbytecode* pc) {
+  return weval::weval(
+      reinterpret_cast<PartiallySpecializedInterpretInner*>(specialized),
+      InterpretInner, weval::Runtime<JSContext*>(), weval::Runtime<RunState&>(),
+      weval::Runtime<InterpretContext&>(), weval::Specialize<jsbytecode*>(pc),
+      weval::Specialize<uint32_t>(
+          static_cast<uint32_t>(InterpretEntryKind::Specialized)));
+}
+#endif
 
 #define SET_SCRIPT(s)                                         \
   JS_BEGIN_MACRO                                              \

@@ -206,6 +206,15 @@ extern bool ExecuteKernel(JSContext* cx, HandleScript script,
 extern bool Execute(JSContext* cx, HandleScript script, HandleObject envChain,
                     MutableHandleValue rval);
 
+#ifdef ENABLE_JS_INTERP_WEVAL
+
+#  include <weval.h>  // weval_req_t
+
+extern weval_req_t* RegisterInterpreterSpecialization(void** specialized,
+                                                      ImmutableScriptData* isd,
+                                                      jsbytecode* pc);
+#endif  // ENABLE_JS_INTERP_WEVAL
+
 class ExecuteState;
 class InvokeState;
 
