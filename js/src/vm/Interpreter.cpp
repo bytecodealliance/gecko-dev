@@ -2164,6 +2164,20 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
   return ret;
 }
 
+enum class InterpretCallResult : uint32_t {
+  SuccessAdvancePastCall,
+  Error,
+#ifndef ENABLE_JS_INTERP_WEVAL
+  SuccessZeroAdvance,
+  PrologueError,
+  JitReturn,
+#endif
+};
+
+static InterpretCallResult InterpretCall(JSContext* cx, RunState& state,
+                                         InterpretContext& ictx,
+                                         jsbytecode* pc);
+
 static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInner(
     JSContext* cx, RunState& state, InterpretContext& ictx, jsbytecode* pc,
     ImmutableScriptData* isd, InterpretEntryKind entryKind) {
@@ -3586,165 +3600,21 @@ initial_dispatch:
     CASE(CallIter)
     CASE(CallContentIter)
     CASE(SuperCall) {
-      static_assert(JSOpLength_Call == JSOpLength_New,
-                    "call and new must be the same size");
-      static_assert(JSOpLength_Call == JSOpLength_CallContent,
-                    "call and call-content must be the same size");
-      static_assert(JSOpLength_Call == JSOpLength_CallIgnoresRv,
-                    "call and call-ignores-rv must be the same size");
-      static_assert(JSOpLength_Call == JSOpLength_CallIter,
-                    "call and calliter must be the same size");
-      static_assert(JSOpLength_Call == JSOpLength_CallContentIter,
-                    "call and call-content-iter must be the same size");
-      static_assert(JSOpLength_Call == JSOpLength_SuperCall,
-                    "call and supercall must be the same size");
-
-      if (REGS.fp()->hasPushedGeckoProfilerFrame()) {
-        cx->geckoProfiler().updatePC(cx, ictx.script, pc);
-      }
-
-      JSOp op = JSOp(*pc);
-      MaybeConstruct construct = MaybeConstruct(
-          op == JSOp::New || op == JSOp::NewContent || op == JSOp::SuperCall);
-      bool ignoresReturnValue = op == JSOp::CallIgnoresRv;
-      unsigned argStackSlots = GET_ARGC(pc) + construct;
-
-      MOZ_ASSERT(REGS.stackDepth() >= 2u + GET_ARGC(pc));
-      CallArgs args =
-          CallArgsFromSp(argStackSlots, REGS.sp, construct, ignoresReturnValue);
-
-      JSFunction* maybeFun;
-      bool isFunction = IsFunctionObject(args.calleev(), &maybeFun);
-
-      // Use the slow path if the callee is not an interpreted function, if we
-      // have to throw an exception, or if we might have to invoke the
-      // OnNativeCall hook for a self-hosted builtin.
-      if (!isFunction || !maybeFun->isInterpreted() ||
-          (construct && !maybeFun->isConstructor()) ||
-          (!construct && maybeFun->isClassConstructor()) ||
-          cx->insideDebuggerEvaluationWithOnNativeCallHook) {
-        if (construct) {
-          CallReason reason = op == JSOp::NewContent ? CallReason::CallContent
-                                                     : CallReason::Call;
-          if (!ConstructFromStack(cx, args, reason)) {
-            goto error;
-          }
-        } else {
-          if ((op == JSOp::CallIter || op == JSOp::CallContentIter) &&
-              args.calleev().isPrimitive()) {
-            MOZ_ASSERT(args.length() == 0, "thisv must be on top of the stack");
-            ReportValueError(cx, JSMSG_NOT_ITERABLE, -1, args.thisv(), nullptr);
-            goto error;
-          }
-
-          CallReason reason =
-              (op == JSOp::CallContent || op == JSOp::CallContentIter)
-                  ? CallReason::CallContent
-                  : CallReason::Call;
-          if (!CallFromStack(cx, args, reason)) {
-            goto error;
-          }
-        }
-        Value* newsp = args.spAfterCall();
-        REGS.sp = newsp;
-        ADVANCE_AND_DISPATCH(JSOpLength_Call);
-      }
-
-      {
-        MOZ_ASSERT(maybeFun);
-        ReservedRooted<JSFunction*> fun(&ictx.rootFunction0, maybeFun);
-        ReservedRooted<JSScript*> funScript(
-            &ictx.rootScript0, JSFunction::getOrCreateScript(cx, fun));
-        if (!funScript) {
+      switch (InterpretCall(cx, state, ictx, pc)) {
+        case InterpretCallResult::SuccessAdvancePastCall:
+          ADVANCE_AND_DISPATCH(JSOpLength_Call);
+        case InterpretCallResult::Error:
           goto error;
-        }
-
-        // Enter the callee's realm if this is a cross-realm call. Use
-        // MakeScopeExit to leave this realm on all error/JIT-return paths
-        // below.
-        const bool isCrossRealm = cx->realm() != funScript->realm();
-        if (isCrossRealm) {
-          cx->enterRealmOf(funScript);
-        }
-        auto leaveRealmGuard =
-            mozilla::MakeScopeExit([isCrossRealm, cx, &ictx] {
-              if (isCrossRealm) {
-                cx->leaveRealm(ictx.script->realm());
-              }
-            });
-
-        if (construct && !MaybeCreateThisForConstructor(cx, args)) {
-          goto error;
-        }
-
 #ifndef ENABLE_JS_INTERP_WEVAL
-        {
-          InvokeState state(cx, args, construct);
-
-          jit::EnterJitStatus status = jit::MaybeEnterJit(cx, state);
-          switch (status) {
-            case jit::EnterJitStatus::Error:
-              goto error;
-            case jit::EnterJitStatus::Ok:
-              ictx.interpReturnOK = true;
-              CHECK_BRANCH();
-              REGS.sp = args.spAfterCall();
-              goto jit_return;
-            case jit::EnterJitStatus::NotEntered:
-              break;
-          }
-
-#  ifdef NIGHTLY_BUILD
-          // If entry trampolines are enabled, call back into
-          // MaybeEnterInterpreterTrampoline so we can generate an
-          // entry trampoline for the new frame.
-          if (jit::JitOptions.emitInterpreterEntryTrampoline) {
-            if (MaybeEnterInterpreterTrampoline(cx, state)) {
-              ictx.interpReturnOK = true;
-              CHECK_BRANCH();
-              REGS.sp = args.spAfterCall();
-              goto jit_return;
-            }
-            goto error;
-          }
-#  endif  // NIGHTLY_BUILD
-        }
-#endif  // !ENABLE_JS_INTERP_WEVAL
-
-        funScript = fun->nonLazyScript();
-
-        if (!ictx.activation.pushInlineFrame(args, funScript, construct)) {
-          goto error;
-        }
-        leaveRealmGuard.release();  // We leave the callee's realm when we
-                                    // call popInlineFrame.
+        case InterpretCallResult::SuccessZeroAdvance:
+          ADVANCE_AND_DISPATCH(0);
+        case InterpretCallResult::PrologueError:
+          goto prologue_error;
+        case InterpretCallResult::JitReturn:
+          goto jit_return;
+#endif
       }
-
-      SET_SCRIPT(REGS.fp()->script());
-
-#ifdef ENABLE_JS_INTERP_NATIVE_CALLSTACK
-      bool ret;
-      CALL_INNER(ret);
-      if (!ret) {
-        goto error;
-      }
-      ADVANCE_AND_DISPATCH(JSOpLength_Call);
-#else   // ENABLE_JS_INTERP_NATIVE_CALLSTACK
-      if (!REGS.fp()->prologue(cx)) {
-        goto prologue_error;
-      }
-
-      if (!DebugAPI::onEnterFrame(cx, REGS.fp())) {
-        goto error;
-      }
-
-      // Increment the coverage for the main entry point.
-      INIT_COVERAGE();
-      COUNT_COVERAGE_MAIN();
-
-      /* Load first op and dispatch it (safe since JSOp::RetRval). */
-      ADVANCE_AND_DISPATCH(0);
-#endif  // !ENABLE_JS_INTERP_NATIVE_CALLSTACK
+      goto error;
     }
 
     CASE(OptimizeSpreadCall) {
@@ -4745,6 +4615,8 @@ initial_dispatch:
     END_CASE(AfterYield)
 
     CASE(FinalYieldRval) {
+      BAIL_IF_SPECIALIZED(InterpretEntryKind::InterpretBailout);
+
       ReservedRooted<JSObject*> gen(&ictx.rootObject0, &REGS.sp[-1].toObject());
       REGS.sp--;
       AbstractGeneratorObject::finalSuspend(gen);
@@ -5016,6 +4888,181 @@ static MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER bool InterpretInnerBailout(
   return InterpretInner(cx, state, ictx, pc, isd, entryKind);
 }
 #endif
+
+#ifdef ENABLE_JS_INTERP_WEVAL
+MOZ_NEVER_INLINE
+#else
+MOZ_ALWAYS_INLINE
+#endif
+static InterpretCallResult InterpretCall(JSContext* cx, RunState& state,
+                                         InterpretContext& ictx,
+                                         jsbytecode* pc) {
+  static_assert(JSOpLength_Call == JSOpLength_New,
+                "call and new must be the same size");
+  static_assert(JSOpLength_Call == JSOpLength_CallContent,
+                "call and call-content must be the same size");
+  static_assert(JSOpLength_Call == JSOpLength_CallIgnoresRv,
+                "call and call-ignores-rv must be the same size");
+  static_assert(JSOpLength_Call == JSOpLength_CallIter,
+                "call and calliter must be the same size");
+  static_assert(JSOpLength_Call == JSOpLength_CallContentIter,
+                "call and call-content-iter must be the same size");
+  static_assert(JSOpLength_Call == JSOpLength_SuperCall,
+                "call and supercall must be the same size");
+
+  if (REGS.fp()->hasPushedGeckoProfilerFrame()) {
+    cx->geckoProfiler().updatePC(cx, ictx.script, pc);
+  }
+
+  JSOp op = JSOp(*pc);
+  MaybeConstruct construct = MaybeConstruct(
+      op == JSOp::New || op == JSOp::NewContent || op == JSOp::SuperCall);
+  bool ignoresReturnValue = op == JSOp::CallIgnoresRv;
+  unsigned argStackSlots = GET_ARGC(pc) + construct;
+
+  MOZ_ASSERT(REGS.stackDepth() >= 2u + GET_ARGC(pc));
+  CallArgs args =
+      CallArgsFromSp(argStackSlots, REGS.sp, construct, ignoresReturnValue);
+
+  JSFunction* maybeFun;
+  bool isFunction = IsFunctionObject(args.calleev(), &maybeFun);
+
+  // Use the slow path if the callee is not an interpreted function, if we
+  // have to throw an exception, or if we might have to invoke the
+  // OnNativeCall hook for a self-hosted builtin.
+  if (!isFunction || !maybeFun->isInterpreted() ||
+      (construct && !maybeFun->isConstructor()) ||
+      (!construct && maybeFun->isClassConstructor()) ||
+      cx->insideDebuggerEvaluationWithOnNativeCallHook) {
+    if (construct) {
+      CallReason reason =
+          op == JSOp::NewContent ? CallReason::CallContent : CallReason::Call;
+      if (!ConstructFromStack(cx, args, reason)) {
+        goto error;
+      }
+    } else {
+      if ((op == JSOp::CallIter || op == JSOp::CallContentIter) &&
+          args.calleev().isPrimitive()) {
+        MOZ_ASSERT(args.length() == 0, "thisv must be on top of the stack");
+        ReportValueError(cx, JSMSG_NOT_ITERABLE, -1, args.thisv(), nullptr);
+        goto error;
+      }
+
+      CallReason reason =
+          (op == JSOp::CallContent || op == JSOp::CallContentIter)
+              ? CallReason::CallContent
+              : CallReason::Call;
+      if (!CallFromStack(cx, args, reason)) {
+        goto error;
+      }
+    }
+    Value* newsp = args.spAfterCall();
+    REGS.sp = newsp;
+    return InterpretCallResult::SuccessAdvancePastCall;
+  }
+
+  {
+    MOZ_ASSERT(maybeFun);
+    ReservedRooted<JSFunction*> fun(&ictx.rootFunction0, maybeFun);
+    ReservedRooted<JSScript*> funScript(&ictx.rootScript0,
+                                        JSFunction::getOrCreateScript(cx, fun));
+    if (!funScript) {
+      goto error;
+    }
+
+    // Enter the callee's realm if this is a cross-realm call. Use
+    // MakeScopeExit to leave this realm on all error/JIT-return paths
+    // below.
+    const bool isCrossRealm = cx->realm() != funScript->realm();
+    if (isCrossRealm) {
+      cx->enterRealmOf(funScript);
+    }
+    auto leaveRealmGuard = mozilla::MakeScopeExit([isCrossRealm, cx, &ictx] {
+      if (isCrossRealm) {
+        cx->leaveRealm(ictx.script->realm());
+      }
+    });
+
+    if (construct && !MaybeCreateThisForConstructor(cx, args)) {
+      goto error;
+    }
+
+#ifndef ENABLE_JS_INTERP_WEVAL
+    {
+      InvokeState state(cx, args, construct);
+
+      jit::EnterJitStatus status = jit::MaybeEnterJit(cx, state);
+      switch (status) {
+        case jit::EnterJitStatus::Error:
+          goto error;
+        case jit::EnterJitStatus::Ok:
+          ictx.interpReturnOK = true;
+          CHECK_BRANCH();
+          REGS.sp = args.spAfterCall();
+          goto jit_return;
+        case jit::EnterJitStatus::NotEntered:
+          break;
+      }
+
+#  ifdef NIGHTLY_BUILD
+      // If entry trampolines are enabled, call back into
+      // MaybeEnterInterpreterTrampoline so we can generate an
+      // entry trampoline for the new frame.
+      if (jit::JitOptions.emitInterpreterEntryTrampoline) {
+        if (MaybeEnterInterpreterTrampoline(cx, state)) {
+          ictx.interpReturnOK = true;
+          CHECK_BRANCH();
+          REGS.sp = args.spAfterCall();
+          goto jit_return;
+        }
+        goto error;
+      }
+#  endif  // NIGHTLY_BUILD
+    }
+#endif  // !ENABLE_JS_INTERP_WEVAL
+
+    funScript = fun->nonLazyScript();
+
+    if (!ictx.activation.pushInlineFrame(args, funScript, construct)) {
+      goto error;
+    }
+    leaveRealmGuard.release();  // We leave the callee's realm when we
+                                // call popInlineFrame.
+  }
+
+  SET_SCRIPT(REGS.fp()->script());
+
+#ifdef ENABLE_JS_INTERP_NATIVE_CALLSTACK
+  bool ret;
+  CALL_INNER(ret);
+  if (!ret) {
+    goto error;
+  }
+  return InterpretCallResult::SuccessAdvancePastCall;
+#else   // ENABLE_JS_INTERP_NATIVE_CALLSTACK
+  if (!REGS.fp()->prologue(cx)) {
+    goto prologue_error;
+  }
+
+  if (!DebugAPI::onEnterFrame(cx, REGS.fp())) {
+    goto error;
+  }
+
+  // Increment the coverage for the main entry point.
+  INIT_COVERAGE();
+  COUNT_COVERAGE_MAIN();
+  return InterpretCallResult::SuccessZeroAdvance;
+#endif  // !ENABLE_JS_INTERP_NATIVE_CALLSTACK
+
+error:
+  return InterpretCallResult::Error;
+#ifndef ENABLE_JS_INTERP_WEVAL
+prologue_error:
+  return InterpretCallResult::PrologueError;
+jit_return:
+  return InterpretCallResult::JitReturn;
+#endif
+}
 
 bool js::ThrowOperation(JSContext* cx, HandleValue v) {
   MOZ_ASSERT(!cx->isExceptionPending());
