@@ -298,6 +298,7 @@ class BaselineFrame {
 
   inline CallObject& callObj() const;
 
+  void setFlag(uint32_t flag) { flags_ |= flag; }
   void setFlags(uint32_t flags) { flags_ = flags; }
 
   [[nodiscard]] inline bool pushLexicalEnvironment(JSContext* cx,
