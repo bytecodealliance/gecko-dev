@@ -3224,7 +3224,11 @@ void JSScript::updateJitCodeRaw(JSRuntime* rt) {
   } else {
     setJitCodeRaw(rt->jitRuntime()->interpreterStub().value);
   }
+#ifdef ENABLE_PORTABLE_BASELINE_INTERP
   MOZ_ASSERT_IF(!js::jit::IsPortableBaselineInterpreterEnabled(), jitCodeRaw());
+#else
+  MOZ_ASSERT(jitCodeRaw());
+#endif
 }
 
 bool JSScript::hasLoops() {
