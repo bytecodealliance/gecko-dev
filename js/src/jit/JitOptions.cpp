@@ -134,6 +134,11 @@ DefaultJitOptions::DefaultJitOptions() {
   SET_DEFAULT(portableBaselineInterpreter, false);
 #endif
 
+#ifdef ENABLE_PORTABLE_BASELINE_INTERP_FORCE
+  SET_DEFAULT(portableBaselineInterpreter, true);
+  SET_DEFAULT(portableBaselineInterpreterWarmUpThreshold, 0);
+#endif
+
   // Emit baseline interpreter and interpreter entry frames to distinguish which
   // JSScript is being interpreted by external profilers.
   // Enabled by default under --enable-perf, otherwise disabled.
