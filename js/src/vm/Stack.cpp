@@ -642,9 +642,11 @@ JS::ProfilingFrameIterator::getPhysicalFrameAndEntry(
 
   MOZ_ASSERT(isJSJit());
 
+#ifdef ENABLE_PORTABLE_BASELINE_INTERP
   if (jit::IsPortableBaselineInterpreterEnabled()) {
     return mozilla::Nothing();
   }
+#endif
 
   // Look up an entry for the return address.
   void* returnAddr = jsJitIter().resumePCinCurrentFrame();
