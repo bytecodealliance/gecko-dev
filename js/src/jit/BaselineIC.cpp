@@ -323,8 +323,12 @@ static constexpr OpToFallbackKindTable FallbackKindTable;
 
 void ICScript::initICEntries(JSContext* cx, JSScript* script) {
   MOZ_ASSERT(cx->realm()->jitRealm());
+  #ifdef ENABLE_PORTABLE_BASELINE_INTERP
   MOZ_ASSERT(jit::IsBaselineInterpreterEnabled() ||
              jit::IsPortableBaselineInterpreterEnabled());
+  #else
+  MOZ_ASSERT(jit::IsBaselineInterpreterEnabled());
+  #endif
 
   MOZ_ASSERT(numICEntries() == script->numICEntries());
 
