@@ -4344,116 +4344,9 @@ static PBIResult PortableBaselineInterpret(JSContext* cx_, State& state,
     }
 
     CASE(Resume) {
-      // gen, val, resumeKind => rval
-      Value resumeKind = sp[0].asValue();
-      Value arg = sp[1].asValue();
       Value gen = sp[2].asValue();
       Value* callerSP = reinterpret_cast<Value*>(sp);
-
-      // Can we resume directly in PBL? The target (callee) needs a JitScript.
-      AbstractGeneratorObject* genObj =
-          &gen.toObject().as<AbstractGeneratorObject>();
-      JSFunction* callee = &genObj->callee();
-
-      bool canTakeFastpath =
-          callee->hasBaseScript() && callee->isInterpreted() &&
-          !callee->isClassConstructor() &&
-          callee->baseScript()->hasBytecode() &&
-          callee->baseScript()->asJSScript()->hasJitScript() &&
-          callee->baseScript()->asJSScript()->realm() ==
-              frameMgr.cxForLocalUseOnly()->realm();
-      if (canTakeFastpath) {
-        // Check stack depth.
-        canTakeFastpath =
-            stack.check(sp, sizeof(StackVal) *
-                                callee->baseScript()->asJSScript()->nslots());
-      }
-
-      if (canTakeFastpath) {
-        TRACE_PRINTF("taking resume fastpath\n");
-
-        // Directly resume into PBL with an inline call-frame setup.
-        JSScript* calleeScript = callee->baseScript()->asJSScript();
-
-        // Pop args from stack (rval will be pushed by normal in-frame
-        // return or yield fastpath).
-        POPN(3);
-
-        // Save current PC.
-        frame->interpreterPC() = pc;
-
-        // Follow the "call fastpath" logic, except that all formal
-        // args are now `undef`.
-        StackVal* exitFP = stack.pushExitFrame(sp, frame);
-        MOZ_ASSERT(exitFP);
-        // Set exit code to nullptr.
-        sp = exitFP;
-        PUSHNATIVE(StackValNative(nullptr));
-        // Args: all undef, including `this`.
-        for (size_t i = 0; i < callee->nargs() + 2; i++) {
-          PUSH(StackVal(UndefinedValue()));
-        }
-        PUSHNATIVE(StackValNative(
-            CalleeToToken(callee, /* isConstructing = */ false)));
-        PUSHNATIVE(StackValNative(
-            MakeFrameDescriptorForJitCall(FrameType::BaselineStub, 0)));
-
-        // Fake return address.
-        PUSHNATIVE(StackValNative(nullptr));
-
-        BaselineFrame* newFrame =
-            stack.pushFrame(sp, frameMgr.cxForLocalUseOnly(),
-                            /* envChain = */ &genObj->environmentChain());
-        MOZ_ASSERT(newFrame);
-        sp = reinterpret_cast<StackVal*>(newFrame);
-        TRACE_PRINTF("resume frame at %p with env %p\n", newFrame,
-                     &genObj->environmentChain());
-
-        // Set up args obj, if needed.
-        if (genObj->hasArgsObj()) {
-          TRACE_PRINTF("restoring args obj: %p\n", &genObj->argsObj());
-          newFrame->initArgsObjUnchecked(genObj->argsObj());
-        }
-        // New frame always has an initial environment.
-        newFrame->setFlag(BaselineFrame::Flags::HAS_INITIAL_ENV);
-
-        // Push locals and args from generator object.
-        if (genObj->hasStackStorage()) {
-          auto* stack = &genObj->stackStorage();
-          for (size_t i = 0; i < stack->getDenseInitializedLength(); i++) {
-            Value val = stack->getDenseElement(i);
-            TRACE_PRINTF("restoring stack value: %" PRIx64 "\n",
-                         val.asRawBits());
-            PUSH(StackVal(val));
-          }
-          stack->setDenseInitializedLength(0);  // Don't continue to save.
-        };
-
-        // Set script and frame.
-        frame = newFrame;
-        frameMgr.switchToFrame(frame);
-        script.set(calleeScript);
-
-        // Get resume index, and set generator as running.
-        int resumeIndex = genObj->resumeIndex();
-        genObj->setRunning();
-
-        // Set PC.
-        pc = script->code() + script->resumeOffsets()[resumeIndex];
-        frame->interpreterPC() = pc;
-        TRACE_PRINTF("resume index %d gives pc %p\n", resumeIndex, pc);
-
-        // Push arg, generator, and resumeKind.
-        PUSH(StackVal(arg));
-        PUSH(StackVal(ObjectValue(*genObj)));
-        PUSH(StackVal(resumeKind));
-        TRACE_PRINTF("pushed arg %" PRIx64 ", genObj %p, resumeKind %d\n",
-                     arg.asRawBits(), genObj, resumeKind.toInt32());
-
-        // Dispatch.
-        DISPATCH();
-      } else {
-        // Resume into C++ interpreter.
+      {
         ReservedRooted<Value> value0(&state.value0);
         ReservedRooted<JSObject*> obj0(&state.obj0, &gen.toObject());
         {
@@ -4604,10 +4497,14 @@ static PBIResult PortableBaselineInterpret(JSContext* cx_, State& state,
 
         // Pop exit frame as well.
         sp = stack.popFrame();
-        TRACE_PRINTF("pop frame -> sp = %p\n", sp);
         // Pop fake return address and descriptor.
         POPNNATIVE(2);
-        TRACE_PRINTF("pop retaddr and descriptor -> sp = %p\n", sp);
+        // Pop args -- this is always `argc + 2` because we only do
+        // this optimization for ordinary calls, not constructing
+        // calls or spread calls.
+        POPN(argc + 2);
+        // Push return value.
+        PUSH(StackVal(ret));
 
         // Set PC, frame, and current script.
         frame = reinterpret_cast<BaselineFrame*>(
@@ -4617,31 +4514,13 @@ static PBIResult PortableBaselineInterpret(JSContext* cx_, State& state,
         pc = frame->interpreterPC();
         script.set(frame->script());
 
-        // Adjust caller's stack: pop args, push return value.
-
-        bool isResume = JSOp(*pc) == JSOp::Resume;
-        if (!isResume) {
-          // Pop args -- this is always `argc + 2` because we only do
-          // this optimization for ordinary calls, not constructing
-          // calls or spread calls.
-          POPN(argc + 2);
-        }
-        TRACE_PRINTF("pop args -> sp = %p\n", sp);
-        // Push return value.
-        PUSH(StackVal(ret));
-
         if (!ok) {
           goto error;
         }
 
-        if (isResume) {
-          // Advance past resume instruction.
-          ADVANCE(JSOpLength_Resume);
-        } else {
-          // Advance past call instruction, and advance past IC.
-          NEXT_IC();
-          ADVANCE(JSOpLength_Call);
-        }
+        // Advance past call instruction, and advance past IC.
+        NEXT_IC();
+        ADVANCE(JSOpLength_Call);
 
         DISPATCH();
       }
