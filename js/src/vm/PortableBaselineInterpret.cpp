@@ -614,6 +614,25 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     DISPATCH_CACHEOP();
   }
 
+  CACHEOP_CASE(GuardToInt32ModUint32) {
+    ValOperandId inputId = icregs.cacheIRReader.valOperandId();
+    Int32OperandId resultId = icregs.cacheIRReader.int32OperandId();
+    BOUNDSCHECK(resultId);
+    Value input = Value::fromRawBits(icregs.icVals[inputId.id()]);
+    if (input.isInt32()) {
+      icregs.icVals[resultId.id()] = Int32Value(input.toInt32()).asRawBits();
+      DISPATCH_CACHEOP();
+    } else if (input.isDouble()) {
+      double doubleVal = input.toDouble();
+      if (doubleVal >= double(INT64_MIN) && doubleVal <= double(INT64_MAX)) {
+        icregs.icVals[resultId.id()] =
+            Int32Value(int64_t(doubleVal)).asRawBits();
+        DISPATCH_CACHEOP();
+      }
+    }
+    return ICInterpretOpResult::NextIC;
+  }
+
   CACHEOP_CASE(GuardNonDoubleType) {
     ValOperandId inputId = icregs.cacheIRReader.valOperandId();
     ValueType type = icregs.cacheIRReader.valueType();
@@ -1412,6 +1431,59 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     DISPATCH_CACHEOP();
   }
 
+  CACHEOP_CASE(StoreTypedArrayElement) {
+    ObjOperandId objId = icregs.cacheIRReader.objOperandId();
+    Scalar::Type elementType = icregs.cacheIRReader.scalarType();
+    IntPtrOperandId indexId = icregs.cacheIRReader.intPtrOperandId();
+    uint32_t rhsId = icregs.cacheIRReader.rawOperandId();
+    bool handleOOB = icregs.cacheIRReader.readBool();
+    JSObject* obj = reinterpret_cast<JSObject*>(icregs.icVals[objId.id()]);
+    uintptr_t index = uintptr_t(icregs.icVals[indexId.id()]);
+    uint64_t rhs = icregs.icVals[rhsId];
+    if (index >= obj->as<TypedArrayObject>().length()) {
+      if (!handleOOB) {
+        return ICInterpretOpResult::NextIC;
+      }
+    } else {
+      Value v;
+      switch (elementType) {
+        case Scalar::Int8:
+        case Scalar::Uint8:
+        case Scalar::Int16:
+        case Scalar::Uint16:
+        case Scalar::Int32:
+        case Scalar::Uint32:
+        case Scalar::Uint8Clamped:
+          v = Int32Value(rhs);
+          break;
+
+        case Scalar::Float32:
+        case Scalar::Float64:
+          v = Value::fromRawBits(rhs);
+          break;
+
+        case Scalar::BigInt64:
+        case Scalar::BigUint64:
+          v = BigIntValue(reinterpret_cast<JS::BigInt*>(rhs));
+          break;
+
+        case Scalar::MaxTypedArrayViewType:
+        case Scalar::Int64:
+        case Scalar::Simd128:
+          MOZ_CRASH("Unsupported TypedArray type");
+      }
+
+      ReservedRooted<JSObject*> obj0(&state.obj0, obj);
+      ReservedRooted<Value> value0(&state.value0, v);
+      PUSH_IC_FRAME();
+      ObjectOpResult result;
+      MOZ_ALWAYS_TRUE(SetTypedArrayElement(cx, obj0.as<TypedArrayObject>(),
+                                           index, value0, result));
+      MOZ_ALWAYS_TRUE(result.ok());
+    }
+    DISPATCH_CACHEOP();
+  }
+
   CACHEOP_CASE(CallInt32ToString) {
     Int32OperandId inputId = icregs.cacheIRReader.int32OperandId();
     StringOperandId resultId = icregs.cacheIRReader.stringOperandId();
@@ -2107,7 +2179,6 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   }
 
   CACHEOP_CASE_UNIMPL(GuardNumberToIntPtrIndex)
-  CACHEOP_CASE_UNIMPL(GuardToInt32ModUint32)
   CACHEOP_CASE_UNIMPL(GuardToUint8Clamped)
   CACHEOP_CASE_UNIMPL(GuardMultipleShapes)
   CACHEOP_CASE_UNIMPL(CallRegExpMatcherResult)
@@ -2214,7 +2285,6 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(DoubleParseIntResult)
   CACHEOP_CASE_UNIMPL(ObjectToStringResult)
   CACHEOP_CASE_UNIMPL(ReflectGetPrototypeOfResult)
-  CACHEOP_CASE_UNIMPL(StoreTypedArrayElement)
   CACHEOP_CASE_UNIMPL(AtomicsCompareExchangeResult)
   CACHEOP_CASE_UNIMPL(AtomicsExchangeResult)
   CACHEOP_CASE_UNIMPL(AtomicsAddResult)
