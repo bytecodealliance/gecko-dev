@@ -624,6 +624,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       DISPATCH_CACHEOP();
     } else if (input.isDouble()) {
       double doubleVal = input.toDouble();
+      // Accept any double that fits in an int64_t but truncate the top 32 bits.
       if (doubleVal >= double(INT64_MIN) && doubleVal <= double(INT64_MAX)) {
         icregs.icVals[resultId.id()] =
             Int32Value(int64_t(doubleVal)).asRawBits();
@@ -1460,6 +1461,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
         case Scalar::Float32:
         case Scalar::Float64:
           v = Value::fromRawBits(rhs);
+          MOZ_ASSERT(v.isNumber());
           break;
 
         case Scalar::BigInt64:
@@ -1473,11 +1475,14 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
           MOZ_CRASH("Unsupported TypedArray type");
       }
 
-      ReservedRooted<JSObject*> obj0(&state.obj0, obj);
-      ReservedRooted<Value> value0(&state.value0, v);
-      PUSH_IC_FRAME();
+      // SetTypedArrayElement doesn't do anything that can actually GC or need a
+      // new context when the value can only be Int32, Double, or BigInt, as the
+      // above switch statement enforces.
+      FakeRooted<TypedArrayObject*> obj0(nullptr, &obj->as<TypedArrayObject>());
+      FakeRooted<Value> value0(nullptr, v);
       ObjectOpResult result;
-      MOZ_ALWAYS_TRUE(SetTypedArrayElement(cx, obj0.as<TypedArrayObject>(),
+      MOZ_ASSERT(elementType == obj0->type());
+      MOZ_ALWAYS_TRUE(SetTypedArrayElement(frameMgr.cxForLocalUseOnly(), obj0,
                                            index, value0, result));
       MOZ_ALWAYS_TRUE(result.ok());
     }

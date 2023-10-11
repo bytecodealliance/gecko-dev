@@ -44,6 +44,8 @@ class MOZ_RAII FakeRooted : public RootedOperations<T, FakeRooted<T>> {
   DECLARE_NONPOINTER_ACCESSOR_METHODS(ptr);
   DECLARE_NONPOINTER_MUTABLE_ACCESSOR_METHODS(ptr);
 
+  operator JS::Handle<T>() { return JS::Handle<T>::fromMarkedLocation(&ptr); }
+
  private:
   T ptr;
 
