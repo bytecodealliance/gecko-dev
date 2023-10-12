@@ -1226,6 +1226,40 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     DISPATCH_CACHEOP();
   }
 
+  CACHEOP_CASE(MegamorphicLoadSlotResult) {
+    ObjOperandId objId = icregs.cacheIRReader.objOperandId();
+    uint32_t nameOffset = icregs.cacheIRReader.stubOffset();
+    JSObject* obj = reinterpret_cast<JSObject*>(icregs.icVals[objId.id()]);
+    jsid name =
+        jsid::fromRawBits(cstub->stubInfo()->getStubRawWord(cstub, nameOffset));
+    if (!obj->shape()->isNative()) {
+      return ICInterpretOpResult::NextIC;
+    }
+    Value result;
+    if (!GetNativeDataPropertyPureWithCacheLookup(
+            frameMgr.cxForLocalUseOnly(), obj, name, nullptr, &result)) {
+      return ICInterpretOpResult::NextIC;
+    }
+    icregs.icResult = result.asRawBits();
+    DISPATCH_CACHEOP();
+  }
+
+  CACHEOP_CASE(MegamorphicLoadSlotByValueResult) {
+    ObjOperandId objId = icregs.cacheIRReader.objOperandId();
+    ValOperandId idId = icregs.cacheIRReader.valOperandId();
+    JSObject* obj = reinterpret_cast<JSObject*>(icregs.icVals[objId.id()]);
+    Value id = Value::fromRawBits(icregs.icVals[idId.id()]);
+    if (!obj->shape()->isNative()) {
+      return ICInterpretOpResult::NextIC;
+    }
+    Value values[2] = { id };
+    if (!GetNativeDataPropertyByValuePure(frameMgr.cxForLocalUseOnly(), obj, nullptr, values)) {
+      return ICInterpretOpResult::NextIC;
+    }
+    icregs.icResult = values[1].asRawBits();
+    DISPATCH_CACHEOP();
+  }
+
   CACHEOP_CASE(StoreFixedSlot) {
     ObjOperandId objId = icregs.cacheIRReader.objOperandId();
     uint32_t offsetOffset = icregs.cacheIRReader.stubOffset();
@@ -2214,8 +2248,6 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(GuardNotClassConstructor)
   CACHEOP_CASE_UNIMPL(GuardArrayIsPacked)
   CACHEOP_CASE_UNIMPL(GuardArgumentsObjectFlags)
-  CACHEOP_CASE_UNIMPL(MegamorphicLoadSlotResult)
-  CACHEOP_CASE_UNIMPL(MegamorphicLoadSlotByValueResult)
   CACHEOP_CASE_UNIMPL(MegamorphicStoreSlot)
   CACHEOP_CASE_UNIMPL(MegamorphicSetElement)
   CACHEOP_CASE_UNIMPL(MegamorphicHasPropResult)
