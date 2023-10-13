@@ -1739,6 +1739,22 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     DISPATCH_CACHEOP();
   }
 
+  CACHEOP_CASE(LoadArgumentsObjectArgResult) {
+    ObjOperandId objId = icregs.cacheIRReader.objOperandId();
+    Int32OperandId indexId = icregs.cacheIRReader.int32OperandId();
+    JSObject* obj = reinterpret_cast<JSObject*>(icregs.icVals[objId.id()]);
+    uint32_t index = uint32_t(icregs.icVals[indexId.id()]);
+    ArgumentsObject* args = &obj->as<ArgumentsObject>();
+    if (index >= args->initialLength() || args->hasOverriddenElement()) {
+      return ICInterpretOpResult::NextIC;
+    }
+    if (args->argIsForwarded(index)) {
+      return ICInterpretOpResult::NextIC;
+    }
+    icregs.icResult = args->arg(index).asRawBits();
+    DISPATCH_CACHEOP();
+  }
+
   CACHEOP_CASE(LinearizeForCharAccess) {
     StringOperandId strId = icregs.cacheIRReader.stringOperandId();
     Int32OperandId indexId = icregs.cacheIRReader.int32OperandId();
@@ -2361,7 +2377,6 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(LoadTypedArrayElementResult)
   CACHEOP_CASE_UNIMPL(LoadDataViewValueResult)
   CACHEOP_CASE_UNIMPL(StoreDataViewValueResult)
-  CACHEOP_CASE_UNIMPL(LoadArgumentsObjectArgResult)
   CACHEOP_CASE_UNIMPL(LoadArgumentsObjectArgHoleResult)
   CACHEOP_CASE_UNIMPL(LoadArgumentsObjectArgExistsResult)
   CACHEOP_CASE_UNIMPL(LoadArgumentsObjectLengthResult)
