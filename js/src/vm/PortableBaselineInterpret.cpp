@@ -1308,6 +1308,26 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     DISPATCH_CACHEOP();
   }
 
+  CACHEOP_CASE(MegamorphicSetElement) {
+    ObjOperandId objId = icregs.cacheIRReader.objOperandId();
+    ValOperandId idId = icregs.cacheIRReader.valOperandId();
+    ValOperandId rhsId = icregs.cacheIRReader.valOperandId();
+    bool strict = icregs.cacheIRReader.readBool();
+    JSObject* obj = reinterpret_cast<JSObject*>(icregs.icVals[objId.id()]);
+    Value id = Value::fromRawBits(icregs.icVals[idId.id()]);
+    Value rhs = Value::fromRawBits(icregs.icVals[rhsId.id()]);
+    {
+      PUSH_IC_FRAME();
+      ReservedRooted<JSObject*> obj0(&state.obj0, obj);
+      ReservedRooted<Value> value0(&state.value0, id);
+      ReservedRooted<Value> value1(&state.value1, rhs);
+      if (!SetElementMegamorphic<false>(cx, obj0, value0, value1, strict)) {
+        return ICInterpretOpResult::Error;
+      }
+    }
+    DISPATCH_CACHEOP();
+  }
+
   CACHEOP_CASE(StoreFixedSlot) {
     ObjOperandId objId = icregs.cacheIRReader.objOperandId();
     uint32_t offsetOffset = icregs.cacheIRReader.stubOffset();
@@ -2308,7 +2328,6 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(GuardArrayIsPacked)
   CACHEOP_CASE_UNIMPL(GuardArgumentsObjectFlags)
   CACHEOP_CASE_UNIMPL(MegamorphicStoreSlot)
-  CACHEOP_CASE_UNIMPL(MegamorphicSetElement)
   CACHEOP_CASE_UNIMPL(MegamorphicHasPropResult)
   CACHEOP_CASE_UNIMPL(ObjectToIteratorResult)
   CACHEOP_CASE_UNIMPL(ValueToIteratorResult)
