@@ -1133,6 +1133,54 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     DISPATCH_CACHEOP();
   }
 
+  CACHEOP_CASE(GuardFunctionHasJitEntry) {
+    ObjOperandId funId = icregs.cacheIRReader.objOperandId();
+    bool constructing = icregs.cacheIRReader.readBool();
+    JSObject* fun = reinterpret_cast<JSObject*>(icregs.icVals[funId.id()]);
+    uint16_t flags = FunctionFlags::HasJitEntryFlags(constructing);
+    if (!fun->as<JSFunction>().flags().hasFlags(flags)) {
+      return ICInterpretOpResult::NextIC;
+    }
+    DISPATCH_CACHEOP();
+  }
+
+  CACHEOP_CASE(GuardFunctionHasNoJitEntry) {
+    ObjOperandId funId = icregs.cacheIRReader.objOperandId();
+    JSObject* fun = reinterpret_cast<JSObject*>(icregs.icVals[funId.id()]);
+    uint16_t flags = FunctionFlags::HasJitEntryFlags(/*constructing =*/false);
+    if (fun->as<JSFunction>().flags().hasFlags(flags)) {
+      return ICInterpretOpResult::NextIC;
+    }
+    DISPATCH_CACHEOP();
+  }
+
+  CACHEOP_CASE(GuardFunctionIsNonBuiltinCtor) {
+    ObjOperandId funId = icregs.cacheIRReader.objOperandId();
+    JSObject* fun = reinterpret_cast<JSObject*>(icregs.icVals[funId.id()]);
+    if (!fun->as<JSFunction>().isNonBuiltinConstructor()) {
+      return ICInterpretOpResult::NextIC;
+    }
+    DISPATCH_CACHEOP();
+  }
+
+  CACHEOP_CASE(GuardFunctionIsConstructor) {
+    ObjOperandId funId = icregs.cacheIRReader.objOperandId();
+    JSObject* fun = reinterpret_cast<JSObject*>(icregs.icVals[funId.id()]);
+    if (!fun->as<JSFunction>().isConstructor()) {
+      return ICInterpretOpResult::NextIC;
+    }
+    DISPATCH_CACHEOP();
+  }
+
+  CACHEOP_CASE(GuardNotClassConstructor) {
+    ObjOperandId funId = icregs.cacheIRReader.objOperandId();
+    JSObject* fun = reinterpret_cast<JSObject*>(icregs.icVals[funId.id()]);
+    if (fun->as<JSFunction>().isClassConstructor()) {
+      return ICInterpretOpResult::NextIC;
+    }
+    DISPATCH_CACHEOP();
+  }
+
   CACHEOP_CASE(LoadObject) {
     ObjOperandId resultId = icregs.cacheIRReader.objOperandId();
     BOUNDSCHECK(resultId);
@@ -2257,11 +2305,6 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(GuardDynamicSlotValue)
   CACHEOP_CASE_UNIMPL(LoadFixedSlot)
   CACHEOP_CASE_UNIMPL(LoadDynamicSlot)
-  CACHEOP_CASE_UNIMPL(GuardFunctionHasJitEntry)
-  CACHEOP_CASE_UNIMPL(GuardFunctionHasNoJitEntry)
-  CACHEOP_CASE_UNIMPL(GuardFunctionIsNonBuiltinCtor)
-  CACHEOP_CASE_UNIMPL(GuardFunctionIsConstructor)
-  CACHEOP_CASE_UNIMPL(GuardNotClassConstructor)
   CACHEOP_CASE_UNIMPL(GuardArrayIsPacked)
   CACHEOP_CASE_UNIMPL(GuardArgumentsObjectFlags)
   CACHEOP_CASE_UNIMPL(MegamorphicStoreSlot)
