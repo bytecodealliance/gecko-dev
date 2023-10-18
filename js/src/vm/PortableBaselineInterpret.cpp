@@ -1181,6 +1181,25 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     DISPATCH_CACHEOP();
   }
 
+  CACHEOP_CASE(GuardArrayIsPacked) {
+    ObjOperandId arrayId = icregs.cacheIRReader.objOperandId();
+    JSObject* array = reinterpret_cast<JSObject*>(icregs.icVals[arrayId.id()]);
+    if (!array->as<NativeObject>().getElementsHeader()->isPacked()) {
+      return ICInterpretOpResult::NextIC;
+    }
+    DISPATCH_CACHEOP();
+  }
+
+  CACHEOP_CASE(GuardArgumentsObjectFlags) {
+    ObjOperandId objId = icregs.cacheIRReader.objOperandId();
+    uint8_t flags = icregs.cacheIRReader.readByte();
+    JSObject* obj = reinterpret_cast<JSObject*>(icregs.icVals[objId.id()]);
+    if (obj->as<ArgumentsObject>().hasFlags(flags)) {
+      return ICInterpretOpResult::NextIC;
+    }
+    DISPATCH_CACHEOP();
+  }
+
   CACHEOP_CASE(LoadObject) {
     ObjOperandId resultId = icregs.cacheIRReader.objOperandId();
     BOUNDSCHECK(resultId);
@@ -2325,8 +2344,6 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(GuardDynamicSlotValue)
   CACHEOP_CASE_UNIMPL(LoadFixedSlot)
   CACHEOP_CASE_UNIMPL(LoadDynamicSlot)
-  CACHEOP_CASE_UNIMPL(GuardArrayIsPacked)
-  CACHEOP_CASE_UNIMPL(GuardArgumentsObjectFlags)
   CACHEOP_CASE_UNIMPL(MegamorphicStoreSlot)
   CACHEOP_CASE_UNIMPL(MegamorphicHasPropResult)
   CACHEOP_CASE_UNIMPL(ObjectToIteratorResult)

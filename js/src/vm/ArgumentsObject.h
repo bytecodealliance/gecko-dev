@@ -274,10 +274,14 @@ class ArgumentsObject : public NativeObject {
     return argc;
   }
 
+  bool hasFlags(uint32_t flags) const {
+    const Value& v = getFixedSlot(INITIAL_LENGTH_SLOT);
+    return v.toInt32() & flags;
+  }
+
   // True iff arguments.length has been assigned or deleted.
   bool hasOverriddenLength() const {
-    const Value& v = getFixedSlot(INITIAL_LENGTH_SLOT);
-    return v.toInt32() & LENGTH_OVERRIDDEN_BIT;
+    return hasFlags(LENGTH_OVERRIDDEN_BIT);
   }
 
   void markLengthOverridden() {
@@ -291,8 +295,7 @@ class ArgumentsObject : public NativeObject {
 
   // True iff arguments[@@iterator] has been assigned or deleted.
   bool hasOverriddenIterator() const {
-    const Value& v = getFixedSlot(INITIAL_LENGTH_SLOT);
-    return v.toInt32() & ITERATOR_OVERRIDDEN_BIT;
+    return hasFlags(ITERATOR_OVERRIDDEN_BIT);
   }
 
   void markIteratorOverridden() {
@@ -311,8 +314,7 @@ class ArgumentsObject : public NativeObject {
 
   // True iff any element has been assigned or deleted.
   bool hasOverriddenElement() const {
-    const Value& v = getFixedSlot(INITIAL_LENGTH_SLOT);
-    return v.toInt32() & ELEMENT_OVERRIDDEN_BIT;
+    return hasFlags(ELEMENT_OVERRIDDEN_BIT);
   }
 
   void markElementOverridden() {
@@ -410,8 +412,7 @@ class ArgumentsObject : public NativeObject {
   }
 
   bool anyArgIsForwarded() const {
-    const Value& v = getFixedSlot(INITIAL_LENGTH_SLOT);
-    return v.toInt32() & FORWARDED_ARGUMENTS_BIT;
+    return hasFlags(FORWARDED_ARGUMENTS_BIT);
   }
 
   void markArgumentForwarded() {
@@ -505,8 +506,7 @@ class MappedArgumentsObject : public ArgumentsObject {
   }
 
   bool hasOverriddenCallee() const {
-    const Value& v = getFixedSlot(INITIAL_LENGTH_SLOT);
-    return v.toInt32() & CALLEE_OVERRIDDEN_BIT;
+    return hasFlags(CALLEE_OVERRIDDEN_BIT);
   }
 
   void markCalleeOverridden() {
