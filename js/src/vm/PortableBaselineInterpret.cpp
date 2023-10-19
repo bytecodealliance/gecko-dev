@@ -1130,7 +1130,9 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     uint32_t slot = cstub->stubInfo()->getStubRawInt32(cstub, slotOffset);
     NativeObject* nobj = &obj->as<NativeObject>();
     HeapSlot* slots = nobj->getSlotsUnchecked();
-    Value actual = slots[slot / sizeof(Value)];
+    // Note that unlike similar opcodes, GuardDynamicSlotIsNotObject takes a
+    // slot index rather than a byte offset.
+    Value actual = slots[slot];
     if (actual.isObject()) {
       return ICInterpretOpResult::NextIC;
     }
