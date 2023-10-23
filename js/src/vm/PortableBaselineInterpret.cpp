@@ -1112,11 +1112,13 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     ObjOperandId expectedId = icregs.cacheIRReader.objOperandId();
     uint32_t slotOffset = icregs.cacheIRReader.stubOffset();
     JSObject* expected = reinterpret_cast<JSObject*>(icregs.icVals[expectedId.id()]);
-    uintptr_t offset = cstub->stubInfo()->getStubRawInt32(cstub, slotOffset);
+    uintptr_t slot = cstub->stubInfo()->getStubRawInt32(cstub, slotOffset);
     NativeObject* nobj =
         reinterpret_cast<NativeObject*>(icregs.icVals[objId.id()]);
     HeapSlot* slots = nobj->getSlotsUnchecked();
-    Value actual = slots[offset / sizeof(Value)];
+    // Note that unlike similar opcodes, GuardDynamicSlotIsSpecificObject takes
+    // a slot index rather than a byte offset.
+    Value actual = slots[slot];
     if (actual != ObjectValue(*expected)) {
       return ICInterpretOpResult::NextIC;
     }
