@@ -1830,6 +1830,16 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     DISPATCH_CACHEOP();
   }
 
+  CACHEOP_CASE(MetaScriptedThisShape) {
+    uint32_t thisShapeOffset = icregs.cacheIRReader.stubOffset();
+    Shape* thisShape = reinterpret_cast<Shape*>(
+        cstub->stubInfo()->getStubRawWord(cstub, thisShapeOffset));
+    // This op is only metadata for the Warp Transpiler and should be ignored.
+    (void)thisShape;
+    PREDICT_NEXT(CallScriptedFunction);
+    DISPATCH_CACHEOP();
+  }
+
   CACHEOP_CASE(LoadFixedSlotResult) {
     ObjOperandId objId = icregs.cacheIRReader.objOperandId();
     uint32_t offsetOffset = icregs.cacheIRReader.stubOffset();
@@ -2521,7 +2531,6 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(CallDOMFunction)
   CACHEOP_CASE_UNIMPL(CallClassHook)
   CACHEOP_CASE_UNIMPL(CallInlinedFunction)
-  CACHEOP_CASE_UNIMPL(MetaScriptedThisShape)
   CACHEOP_CASE_UNIMPL(BindFunctionResult)
   CACHEOP_CASE_UNIMPL(SpecializedBindFunctionResult)
   CACHEOP_CASE_UNIMPL(LoadFixedSlotTypedResult)
