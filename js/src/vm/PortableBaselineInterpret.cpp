@@ -1734,8 +1734,12 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     }
 
     // For now, fail any constructing or different-realm cases.
-    if (flags.isConstructing() || !flags.isSameRealm()) {
-      TRACE_PRINTF("failing: constructing or not same realm\n");
+    if (flags.isConstructing()) {
+      TRACE_PRINTF("failing: constructing\n");
+      return ICInterpretOpResult::NextIC;
+    }
+    if (!flags.isSameRealm()) {
+      TRACE_PRINTF("failing: not same realm\n");
       return ICInterpretOpResult::NextIC;
     }
     // And support only "standard" arg formats.
