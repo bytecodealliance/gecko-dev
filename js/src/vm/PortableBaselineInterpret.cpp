@@ -1836,10 +1836,8 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
 
   CACHEOP_CASE(MetaScriptedThisShape) {
     uint32_t thisShapeOffset = icregs.cacheIRReader.stubOffset();
-    Shape* thisShape = reinterpret_cast<Shape*>(
-        cstub->stubInfo()->getStubRawWord(cstub, thisShapeOffset));
     // This op is only metadata for the Warp Transpiler and should be ignored.
-    (void)thisShape;
+    (void)thisShapeOffset;
     PREDICT_NEXT(CallScriptedFunction);
     DISPATCH_CACHEOP();
   }
