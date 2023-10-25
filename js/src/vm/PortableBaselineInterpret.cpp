@@ -1266,7 +1266,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE(GuardArrayIsPacked) {
     ObjOperandId arrayId = icregs.cacheIRReader.objOperandId();
     JSObject* array = reinterpret_cast<JSObject*>(icregs.icVals[arrayId.id()]);
-    if (!array->as<NativeObject>().getElementsHeader()->isPacked()) {
+    if (!IsPackedArray(array)) {
       return ICInterpretOpResult::NextIC;
     }
     DISPATCH_CACHEOP();
