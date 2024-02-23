@@ -447,6 +447,12 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     goto cacheop_##name;                                \
   }
 
+#define PREDICT_RETURN()                                        \
+  if (icregs.cacheIRReader.peekOp() == CacheOp::ReturnFromIC) { \
+    TRACE_PRINTF("stub successful, predicted return\n");        \
+    return ICInterpretOpResult::Return;                         \
+  }
+
   CacheOp cacheop;
 
   DISPATCH_CACHEOP();
@@ -925,7 +931,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
         reinterpret_cast<uintptr_t>(nobj) + offset);
     Value val = Value::fromRawBits(icregs.icVals[rhsId.id()]);
     slot->set(val);
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -941,7 +947,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     size_t dynSlot = offset / sizeof(Value);
     size_t slot = dynSlot + nobj->numFixedSlots();
     slots[dynSlot].set(nobj, HeapSlot::Slot, slot, val);
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -963,7 +969,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     Value val = Value::fromRawBits(icregs.icVals[rhsId.id()]);
     slot->set(nobj, HeapSlot::Element, index + elems->numShiftedElements(),
               val);
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -971,7 +977,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     ValOperandId inputId = icregs.cacheIRReader.valOperandId();
     Value val = Value::fromRawBits(icregs.icVals[inputId.id()]);
     icregs.icResult = BooleanValue(val.isObject()).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1122,6 +1128,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       }
     }
 
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1138,7 +1145,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
         "slot %" PRIx64 "\n",
         nobj, int(offsetOffset), int(offset), slot, slot->asRawBits());
     icregs.icResult = slot->asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1150,7 +1157,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
         reinterpret_cast<NativeObject*>(icregs.icVals[objId.id()]);
     HeapSlot* slots = nobj->getSlotsUnchecked();
     icregs.icResult = slots[offset / sizeof(Value)].get().asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1170,7 +1177,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       return ICInterpretOpResult::NextIC;
     }
     icregs.icResult = val.asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1183,7 +1190,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       return ICInterpretOpResult::NextIC;
     }
     icregs.icResult = Int32Value(length).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1257,7 +1264,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       }
     }
     icregs.icResult = StringValue(result).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1285,7 +1292,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       result = Int32Value(c);
     }
     icregs.icResult = result.asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1297,7 +1304,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       return ICInterpretOpResult::NextIC;
     }
     icregs.icResult = Int32Value(length).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1306,7 +1313,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     icregs.icResult =
         ObjectValue(*reinterpret_cast<JSObject*>(icregs.icVals[objId.id()]))
             .asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1315,6 +1322,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     icregs.icResult =
         StringValue(reinterpret_cast<JSString*>(icregs.icVals[strId.id()]))
             .asRawBits();
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1323,14 +1331,14 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     icregs.icResult =
         SymbolValue(reinterpret_cast<JS::Symbol*>(icregs.icVals[symId.id()]))
             .asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
   CACHEOP_CASE(LoadInt32Result) {
     Int32OperandId valId = icregs.cacheIRReader.int32OperandId();
     icregs.icResult = Int32Value(icregs.icVals[valId.id()]).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1341,7 +1349,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       val = DoubleValue(val.toInt32());
     }
     icregs.icResult = val.asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1350,14 +1358,14 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     icregs.icResult =
         BigIntValue(reinterpret_cast<JS::BigInt*>(icregs.icVals[valId.id()]))
             .asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
   CACHEOP_CASE(LoadBooleanResult) {
     bool val = icregs.cacheIRReader.readBool();
     icregs.icResult = BooleanValue(val).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1375,7 +1383,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     JSString* str = reinterpret_cast<JSString*>(
         cstub->stubInfo()->getStubRawWord(cstub, strOffset));
     icregs.icResult = StringValue(str).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1391,7 +1399,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       return ICInterpretOpResult::NextIC;                         \
     }                                                             \
     icregs.icResult = Int32Value(int32_t(result)).asRawBits();    \
-    PREDICT_NEXT(ReturnFromIC);                                   \
+    PREDICT_RETURN();                                             \
     DISPATCH_CACHEOP();                                           \
   }
 
@@ -1457,7 +1465,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     }
 
     icregs.icResult = Int32Value(int32_t(result)).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1469,7 +1477,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       return ICInterpretOpResult::NextIC;
     }
     icregs.icResult = Int32Value(int32_t(value)).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1477,7 +1485,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     ValOperandId inputId = icregs.cacheIRReader.valOperandId();
     int32_t val = int32_t(icregs.icVals[inputId.id()]);
     icregs.icResult = BooleanValue(val != 0).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1486,7 +1494,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     JSString* str =
         reinterpret_cast<JSLinearString*>(icregs.icVals[strId.id()]);
     icregs.icResult = BooleanValue(str->length() > 0).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1498,21 +1506,21 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       return ICInterpretOpResult::NextIC;
     }
     icregs.icResult = BooleanValue(!cls->emulatesUndefined()).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
   CACHEOP_CASE(LoadValueResult) {
     uint32_t valOffset = icregs.cacheIRReader.stubOffset();
     icregs.icResult = cstub->stubInfo()->getStubRawInt64(cstub, valOffset);
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
   CACHEOP_CASE(LoadOperandResult) {
     ValOperandId inputId = icregs.cacheIRReader.valOperandId();
     icregs.icResult = icregs.icVals[inputId.id()];
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1532,7 +1540,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     } else {
       return ICInterpretOpResult::NextIC;
     }
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1597,7 +1605,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
       }
       icregs.icResult = BooleanValue(result).asRawBits();
     }
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1635,7 +1643,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
         MOZ_CRASH("Unexpected opcode");
     }
     icregs.icResult = BooleanValue(result).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
@@ -1670,7 +1678,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
         MOZ_CRASH("bad opcode");
     }
     icregs.icResult = BooleanValue(result).asRawBits();
-    PREDICT_NEXT(ReturnFromIC);
+    PREDICT_RETURN();
     DISPATCH_CACHEOP();
   }
 
