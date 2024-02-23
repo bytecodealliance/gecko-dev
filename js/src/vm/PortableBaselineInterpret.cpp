@@ -673,9 +673,9 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     ObjOperandId objId = icregs.cacheIRReader.objOperandId();
     uint32_t protoOffset = icregs.cacheIRReader.stubOffset();
     JSObject* obj = reinterpret_cast<JSObject*>(icregs.icVals[objId.id()]);
-    uintptr_t expectedProto =
-        cstub->stubInfo()->getStubRawWord(cstub, protoOffset);
-    if (reinterpret_cast<uintptr_t>(obj->staticPrototype()) != expectedProto) {
+    JSObject* proto = reinterpret_cast<JSObject*>(
+        cstub->stubInfo()->getStubRawWord(cstub, protoOffset));
+    if (obj->staticPrototype() != proto) {
       return ICInterpretOpResult::NextIC;
     }
     PREDICT_NEXT(LoadProto);
@@ -768,9 +768,10 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE(GuardSpecificObject) {
     ObjOperandId objId = icregs.cacheIRReader.objOperandId();
     uint32_t expectedOffset = icregs.cacheIRReader.stubOffset();
-    uintptr_t expected =
-        cstub->stubInfo()->getStubRawWord(cstub, expectedOffset);
-    if (expected != icregs.icVals[objId.id()]) {
+    JSObject* obj = reinterpret_cast<JSObject*>(icregs.icVals[objId.id()]);
+    JSObject* expected = reinterpret_cast<JSObject*>(
+        cstub->stubInfo()->getStubRawWord(cstub, expectedOffset));
+    if (obj != expected) {
       return ICInterpretOpResult::NextIC;
     }
     DISPATCH_CACHEOP();
@@ -813,6 +814,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     uintptr_t expected =
         cstub->stubInfo()->getStubRawWord(cstub, expectedOffset);
     if (expected != icregs.icVals[strId.id()]) {
+      // TODO: BaselineCacheIRCompiler also checks for equal strings
       return ICInterpretOpResult::NextIC;
     }
     DISPATCH_CACHEOP();
@@ -844,11 +846,13 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     uint32_t slotOffset = icregs.cacheIRReader.stubOffset();
     JSObject* expected =
         reinterpret_cast<JSObject*>(icregs.icVals[expectedId.id()]);
-    uintptr_t offset = cstub->stubInfo()->getStubRawInt32(cstub, slotOffset);
+    uintptr_t slot = cstub->stubInfo()->getStubRawInt32(cstub, slotOffset);
     NativeObject* nobj =
         reinterpret_cast<NativeObject*>(icregs.icVals[objId.id()]);
     HeapSlot* slots = nobj->getSlotsUnchecked();
-    Value actual = slots[offset / sizeof(Value)];
+    // Note that unlike similar opcodes, GuardDynamicSlotIsSpecificObject takes
+    // a slot index rather than a byte offset.
+    Value actual = slots[slot];
     if (actual != ObjectValue(*expected)) {
       return ICInterpretOpResult::NextIC;
     }
@@ -1036,8 +1040,12 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
     }
 
     // For now, fail any constructing or different-realm cases.
-    if (flags.isConstructing() || !flags.isSameRealm()) {
-      TRACE_PRINTF("failing: constructing or not same realm\n");
+    if (flags.isConstructing()) {
+      TRACE_PRINTF("failing: constructing\n");
+      return ICInterpretOpResult::NextIC;
+    }
+    if (!flags.isSameRealm()) {
+      TRACE_PRINTF("failing: not same realm\n");
       return ICInterpretOpResult::NextIC;
     }
     // And support only "standard" arg formats.
