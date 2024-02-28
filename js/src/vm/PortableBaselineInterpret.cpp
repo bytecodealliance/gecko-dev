@@ -6060,6 +6060,9 @@ MethodStatus js::CanEnterPortableBaselineInterpreter(JSContext* cx,
   if (state.script()->hasForceInterpreterOp()) {
     return MethodStatus::Method_CantCompile;
   }
+  if (state.script()->isAsync() || state.script()->isGenerator()) {
+    return MethodStatus::Method_CantCompile;
+  }
   if (cx->runtime()->geckoProfiler().enabled()) {
     return MethodStatus::Method_CantCompile;
   }
