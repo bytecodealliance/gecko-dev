@@ -1,3 +1,5 @@
+// |jit-test| skip-if: getBuildConfiguration()['wasi']
+//
 // Test that wasm atomic operations implement correct mutual exclusion.
 //
 // We have several agents that attempt to hammer on a shared location with rmw
