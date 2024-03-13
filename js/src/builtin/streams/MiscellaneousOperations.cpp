@@ -53,7 +53,7 @@ using JS::Value;
   // Return a new ArrayBuffer object, created in the current Realm, whose
   // [[ArrayBufferData]] internal slot value is arrayBufferData and whose
   // [[ArrayBufferByteLength]] internal slot value is arrayBufferByteLength.
-  return JS::NewArrayBufferWithContents(cx, bufferLength, bufferData);
+  return JS::NewArrayBufferWithContents(cx, bufferLength, bufferData, JS::NewArrayBufferOutOfMemory::CallerMustFreeMemory);
 }
 
 // https://streams.spec.whatwg.org/#can-transfer-array-buffer
