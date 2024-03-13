@@ -7096,7 +7096,7 @@ static bool EstablishPreconditions(JSContext* cx,
                               "is disabled or unavailable");
   }
 
-  switch (parser.options().asmJSOption) {
+  switch (parser.options().asmJSOption()) {
     case AsmJSOption::DisabledByAsmJSPref:
       return TypeFailureWarning(
           parser, "Asm.js optimizer disabled by 'asmjs' runtime option");
