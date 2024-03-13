@@ -1648,7 +1648,7 @@ static bool IsStringWellFormedUnicode(JSContext* cx, HandleString str,
 
   {
     AutoCheckCannotGC nogc;
-    *isWellFormedUpTo = Utf16ValidUpTo(Span{linear->twoByteChars(nogc), len});
+    *isWellFormedUpTo = Utf16ValidUpTo(mozilla::Span{linear->twoByteChars(nogc), len});
   }
   return true;
 }
