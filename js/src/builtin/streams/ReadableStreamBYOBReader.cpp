@@ -414,7 +414,7 @@ PromiseObject* js::ReadableStreamBYOBReaderRead(
   // buffer byte length buffer.[[ArrayBufferByteLength]], byte offset
   // byteOffset, byte length byteLength, bytes filled 0, element size
   // elementSize, view constructor ctor, and reader type "byob".
-  RootedArrayBufferObject buffer(cx, &bufferResult->as<ArrayBufferObject>());
+  Rooted<ArrayBufferObject*> buffer(cx, &bufferResult->as<ArrayBufferObject>());
   Rooted<PullIntoDescriptor*> pullIntoDescriptor(
       cx, PullIntoDescriptor::create(cx, buffer, byteOffset, byteLength, 0,
                                      elementSize, ctor, ReaderType::BYOB));
