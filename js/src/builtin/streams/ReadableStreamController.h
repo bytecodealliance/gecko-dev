@@ -23,6 +23,7 @@
 #include "js/Value.h"  // JS::Value, JS::{Number,Object,Private,Undefined}Value, JS::UndefinedHandleValue
 #include "vm/List.h"   // js::ListObject
 #include "vm/NativeObject.h"  // js::NativeObject
+#include "vm/TypedArrayObject.h" // ArrayBufferObject
 
 namespace js {
 
