@@ -1,0 +1,25 @@
+name: CI
+concurrency:
+  group: ${{ github.head_ref }}-${{ github.workflow}}
+  cancel-in-progress: true
+on:
+  pull_request:
+defaults:
+  run:
+    shell: bash
+
+jobs:    
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [jstests, jit-test]
+        mozconfig: [ debug, release ]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - run: ./mach --no-interactive bootstrap --application-choice=js
+    - run: MOZCONFIG=.github/workflows/mozconfig-${{ matrix.mozconfig }} ./mach build
+    - run: MOZCONFIG=.github/workflows/mozconfig-${{ matrix.mozconfig }} ./mach ${{ matrix.test }}
