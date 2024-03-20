@@ -1,7 +1,4 @@
 name: CI
-concurrency:
-  group: ${{ github.head_ref }}-${{ github.workflow}}
-  cancel-in-progress: true
 on:
   pull_request:
 defaults:
@@ -14,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         test: [jstests, jit-test]
-        mozconfig: [ debug, release ]
+        mozconfig: [ debug, pbl-debug, pbl-release, release ]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
