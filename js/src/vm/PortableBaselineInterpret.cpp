@@ -66,6 +66,7 @@ using namespace js::jit;
  */
 
 // #define TRACE_INTERP
+// #define DETERMINISTIC_TRACE
 
 #ifdef TRACE_INTERP
 #  define TRACE_PRINTF(...) \
@@ -3112,7 +3113,7 @@ static EnvironmentObject& getEnvironmentFromCoordinate(
 
 #define LABEL(op) (&&label_##op)
 #define CASE(op) label_##op:
-#if !defined(TRACE_INTERP)
+#if !defined(TRACE_INTERP) && !defined(DETERMINISTIC_TRACE)
 #  define DISPATCH() \
     DEBUG_CHECK();   \
     goto* addresses[*pc]
@@ -3137,7 +3138,7 @@ static EnvironmentObject& getEnvironmentFromCoordinate(
   icregs.icVals[(index)] = reinterpret_cast<uint64_t>(expr);
 #define IC_PUSH_RESULT() PUSH(StackVal(icregs.icResult));
 
-#if !defined(TRACE_INTERP)
+#if !defined(TRACE_INTERP) && !defined(DETERMINISTIC_TRACE)
 #  define PREDICT_NEXT(op)       \
     if (JSOp(*pc) == JSOp::op) { \
       DEBUG_CHECK();             \
@@ -3299,6 +3300,24 @@ PBIResult PortableBaselineInterpret(JSContext* cx_, State& state, Stack& stack,
     printf("sp = %p fp = %p\n", sp, stack.fp);
     printf("TOS tag: %d\n", int(sp[0].asValue().asRawBits() >> 47));
     fflush(stdout);
+  }
+#endif
+
+#ifdef DETERMINISTIC_TRACE
+  {
+    static int traceSeq = 1;
+    JSOp op = JSOp(*pc);
+    Value tos = (sp < reinterpret_cast<StackVal*>(frame) - script->nfixed())
+                    ? sp[0].asValue()
+                    : Value::fromRawBits(0);
+    printf("TRACE(%d): script %" PRIx64 " relPC %d op %s ", traceSeq++,
+            reinterpret_cast<uintptr_t>(script.get()) & 0xfffff,
+            int(pc - script->code()), CodeName(op));
+    if (tos.isNumber() || tos.isBoolean()) {
+      printf("TOS %" PRIx64 "\n", tos.asRawBits());
+    } else {
+      printf("TOS tag %d\n", int(tos.asRawBits() >> 47));
+    }
   }
 #endif
 
