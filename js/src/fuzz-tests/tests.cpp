@@ -35,6 +35,7 @@ static JSObject* jsfuzz_createGlobal(JSContext* cx, JSPrincipals* principals) {
   JS::RealmOptions options;
   options.creationOptions()
       .setWeakRefsEnabled(JS::WeakRefSpecifier::EnabledWithCleanupSome)
+      .setStreamsEnabled(true)
       .setSharedMemoryAndAtomicsEnabled(true);
   return JS_NewGlobalObject(cx, getGlobalClass(), principals,
                             JS::FireOnNewGlobalHook, options);

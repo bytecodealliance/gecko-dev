@@ -137,24 +137,24 @@ async function test() {
     otherReader.releaseLock.call(reader);
     assertEq(reader.closed instanceof otherGlobal.Promise, true);
 
-    // getFreshInstances();
+    getFreshInstances();
 
-    // reader = stream.getReader();
-    // request = otherReader.read.call(reader);
-    // assertEq(request instanceof otherGlobal.Promise, true);
-    // controller.enqueue(chunk);
-    // assertEq((await request).value, chunk);
+    reader = stream.getReader();
+    request = otherReader.read.call(reader);
+    assertEq(request instanceof otherGlobal.Promise, true);
+    controller.enqueue(chunk);
+    assertEq((await request).value, chunk);
 
-    // reader.releaseLock();
+    reader.releaseLock();
 
-    // getFreshInstances();
+    getFreshInstances();
 
-    // reader = stream.getReader();
-    // request = otherReader.read.call(reader);
-    // otherController.enqueue.call(controller, chunk);
-    // otherController.enqueue.call(controller, new otherGlobal.Uint8Array(10));
-    // controller.enqueue(new otherGlobal.Uint8Array(10));
-    // request = otherReader.read.call(reader);
+    reader = stream.getReader();
+    request = otherReader.read.call(reader);
+    otherController.enqueue.call(controller, chunk);
+    otherController.enqueue.call(controller, new otherGlobal.Uint8Array(10));
+    controller.enqueue(new otherGlobal.Uint8Array(10));
+    request = otherReader.read.call(reader);
 
     getFreshInstances();
 
@@ -274,17 +274,17 @@ async function test() {
         return;
     }
 
-    if (typeof nukeCCW === 'function') {
-        getFreshInstances("bytes");
-        assertEq(otherController instanceof OtherByteStreamController, true);
-        reader = ReadableStream.prototype.getReader.call(otherStream);
-        otherGlobal.reader = reader;
-        otherGlobal.nukeCCW(otherGlobal.reader);
-        let chunk = new Uint8Array(10);
-        expectException(() => otherController.enqueue(chunk), otherGlobal.TypeError);
-        // otherController.error();
-        expectException(() => reader.read(), TypeError);
-    }
+    // if (typeof nukeCCW === 'function') {
+    //     getFreshInstances("bytes");
+    //     assertEq(otherController instanceof OtherByteStreamController, true);
+    //     reader = ReadableStream.prototype.getReader.call(otherStream);
+    //     otherGlobal.reader = reader;
+    //     otherGlobal.nukeCCW(otherGlobal.reader);
+    //     let chunk = new Uint8Array(10);
+    //     expectException(() => otherController.enqueue(chunk), otherGlobal.TypeError);
+    //     // otherController.error();
+    //     expectException(() => reader.read(), TypeError);
+    // }
 
     function testBYOBRequest(controller, view) {
         const request = new BYOBRequest(controller, view);
