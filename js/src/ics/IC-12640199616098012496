@@ -1,0 +1,1 @@
+TypeOf, 1, 1, 3, JSVAL_TYPE_DOUBLE, 8, STUBFIELD(String) , LASTUSED(0) , OP(GuardIsNumber) ID(0) OP(LoadConstantStringResult) OFFSET(0) OP(ReturnFromIC)  

@@ -1,0 +1,1 @@
+NewObject, 0, 0, 3, JSVAL_TYPE_UNKNOWN, 24, STUBFIELD(RawPointer) STUBFIELD(Shape) STUBFIELD(AllocSite) , , OP(GuardNoAllocationMetadataBuilder) OFFSET(0) OP(NewPlainObjectResult) UINT32(4) UINT32(0) ALLOCKIND(OBJECT4_BACKGROUND) OFFSET(1) OFFSET(2) OP(ReturnFromIC)  
