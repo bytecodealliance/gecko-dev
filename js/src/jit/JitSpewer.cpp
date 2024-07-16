@@ -629,6 +629,8 @@ void jit::DisableChannel(JitSpewChannel channel) {
   LoggingBits &= ~(uint64_t(1) << uint32_t(channel));
 }
 
+#endif /* JS_JITSPEW */
+
 const char* js::jit::ValTypeToString(JSValueType type) {
   switch (type) {
     case JSVAL_TYPE_DOUBLE:
@@ -659,5 +661,3 @@ const char* js::jit::ValTypeToString(JSValueType type) {
       MOZ_CRASH("Unknown JSValueType");
   }
 }
-
-#endif /* JS_JITSPEW */

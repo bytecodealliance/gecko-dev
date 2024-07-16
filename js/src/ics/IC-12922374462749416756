@@ -1,0 +1,1 @@
+ToBool, 1, 1, 3, JSVAL_TYPE_BIGINT, 0, , LASTUSED(1) , OP(GuardToBigInt) ID(0) OP(LoadBigIntTruthyResult) ID(0) OP(ReturnFromIC)  

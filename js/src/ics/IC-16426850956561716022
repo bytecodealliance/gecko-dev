@@ -1,0 +1,1 @@
+GetName, 1, 2, 5, JSVAL_TYPE_UNKNOWN, 48, STUBFIELD(RawInt32) STUBFIELD(RawPointer) STUBFIELD(JSObject) STUBFIELD(Id) STUBFIELD(RawInt32) STUBFIELD(RawInt32) , LASTUSED(0) LASTUSED(3) , OP(GuardGlobalGeneration) OFFSET(0) OFFSET(1) OP(LoadObject) ID(1) OFFSET(2) OP(AssertPropertyLookup) ID(1) OFFSET(3) OFFSET(4) OP(LoadFixedSlotResult) ID(1) OFFSET(5) OP(ReturnFromIC)  

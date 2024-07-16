@@ -2611,10 +2611,8 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(CallDOMFunction)
   CACHEOP_CASE_UNIMPL(CallClassHook)
   CACHEOP_CASE_UNIMPL(CallInlinedFunction)
-#ifdef JS_PUNBOX64
   CACHEOP_CASE_UNIMPL(CallScriptedProxyGetResult)
   CACHEOP_CASE_UNIMPL(CallScriptedProxyGetByValueResult)
-#endif
   CACHEOP_CASE_UNIMPL(BindFunctionResult)
   CACHEOP_CASE_UNIMPL(SpecializedBindFunctionResult)
   CACHEOP_CASE_UNIMPL(LoadFixedSlotTypedResult)
