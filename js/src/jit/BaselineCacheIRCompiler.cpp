@@ -2505,13 +2505,13 @@ static bool AddToFoldedStub(JSContext* cx, const CacheIRWriter& writer,
 
 #ifdef ENABLE_JS_AOT_ICS
 void DumpNonAOTICStubAndQuit(CacheKind kind, const CacheIRWriter& writer) {
-  // Generate a filename based on the current time and PID.
+  // Generate a random filename (unlikely to conflict with others).
   char filename[64];
   snprintf(filename, sizeof(filename), "IC-%" PRIu64,
            mozilla::RandomUint64OrDie());
   FILE* f = fopen(filename, "w");
   MOZ_RELEASE_ASSERT(f);
- 
+
   // Generate the CacheIR text to dump to a file.
   {
     Fprinter printer(f);
@@ -2523,14 +2523,18 @@ void DumpNonAOTICStubAndQuit(CacheKind kind, const CacheIRWriter& writer) {
 
   fprintf(stderr,
           "Please add the file '%s' to the ahead-of-time known IC bodies in "
-          "js/src/ics/.\n",
+          "js/src/ics/.\n"
+          "\n"
+          "To keep running and dump all new ICs (useful for updating with "
+          "test-suites),\n"
+          "set the environment variable AOT_ICS_KEEP_GOING=1 and rerun.\n",
           filename);
 
   if (!getenv("AOT_ICS_KEEP_GOING")) {
     abort();
   }
 }
- #endif
+#endif
 
 static constexpr uint32_t kStubDataOffset = sizeof(ICCacheIRStub);
 static_assert(kStubDataOffset % sizeof(uint64_t) == 0,
@@ -2539,10 +2543,11 @@ static_assert(kStubDataOffset % sizeof(uint64_t) == 0,
 static bool LookupOrCompileStub(JSContext* cx, CacheKind kind,
                                 const CacheIRWriter& writer,
                                 CacheIRStubInfo*& stubInfo, JitCode*& code,
-                                const char* name, bool isAOTFill, JitZone* jitZone) {
-  CacheIRStubKey::Lookup lookup(kind, ICStubEngine::Baseline, writer.codeStart(),
-                                writer.codeLength());
- 
+                                const char* name, bool isAOTFill,
+                                JitZone* jitZone) {
+  CacheIRStubKey::Lookup lookup(kind, ICStubEngine::Baseline,
+                                writer.codeStart(), writer.codeLength());
+
   code = jitZone->getBaselineCacheIRStubCode(lookup, &stubInfo);
 
 #ifdef ENABLE_JS_AOT_ICS
@@ -2595,8 +2600,8 @@ static bool LookupOrCompileStub(JSContext* cx, CacheKind kind,
     // we don't invoke the BaselineCacheIRCompiler so we otherwise
     // don't know for sure.
     stubInfo = CacheIRStubInfo::New(kind, ICStubEngine::Baseline,
-                                    /* makes GC calls = */ true, kStubDataOffset,
-                                    writer);
+                                    /* makes GC calls = */ true,
+                                    kStubDataOffset, writer);
     if (!stubInfo) {
       return false;
     }
@@ -2645,7 +2650,6 @@ ICAttachResult js::jit::AttachBaselineCacheIRStub(
                            /* isAOTFill = */ false, cx->zone()->jitZone())) {
     return ICAttachResult::OOM;
   }
-
 
   ICEntry* icEntry = icScript->icEntryForStub(stub);
 
@@ -2743,12 +2747,12 @@ ICAttachResult js::jit::AttachBaselineCacheIRStub(
 
 #ifdef ENABLE_JS_AOT_ICS
 
-#ifndef ENABLE_PORTABLE_BASELINE_INTERP
+#  ifndef ENABLE_PORTABLE_BASELINE_INTERP
 // The AOT loading of ICs doesn't work (yet) in modes with a native
 // JIT enabled because compilation tries to access state that doesn't
 // exist yet (trampolines?) when we create the JitZone.
-#error AOT ICs are only supported (for now) in PBL builds.
-#endif
+#    error AOT ICs are only supported (for now) in PBL builds.
+#  endif
 
 void js::jit::FillAOTICs(JSContext* cx, JitZone* zone) {
   if (JitOptions.enableAOTICs) {
@@ -2760,7 +2764,8 @@ void js::jit::FillAOTICs(JSContext* cx, JitZone* zone) {
       }
       CacheIRStubInfo* stubInfo;
       JitCode* code;
-      (void)LookupOrCompileStub(cx, stub.kind, writer, stubInfo, code, "aot stub",
+      (void)LookupOrCompileStub(cx, stub.kind, writer, stubInfo, code,
+                                "aot stub",
                                 /* isAOTFill = */ true, zone);
       (void)stubInfo;
       (void)code;

@@ -37,7 +37,8 @@
 // These correspond to the CacheIRWriter definitions of the serialized
 // CacheIR format.
 
-#  define OP(op) uint8_t(uint16_t(CacheOp::op) & 0xff), uint8_t(uint16_t(CacheOp::op) >> 8),
+#  define OP(op) \
+    uint8_t(uint16_t(CacheOp::op) & 0xff), uint8_t(uint16_t(CacheOp::op) >> 8),
 #  define ID(id) id,
 #  define OFFSET(off) off,
 #  define BOOL(x) x,
@@ -46,9 +47,9 @@
 #  define STATIC_STRING(p) NATIVE_NULLPTR,
 #  define INT32(i)                                                             \
     uint32_t(i) & 0xff, (uint32_t(i) >> 8) & 0xff, (uint32_t(i) >> 16) & 0xff, \
-      (uint32_t(i) >> 24) & 0xff,
+        (uint32_t(i) >> 24) & 0xff,
 #  define UINT32(i) \
-  (i) & 0xff, ((i) >> 8) & 0xff, ((i) >> 16) & 0xff, ((i) >> 24) & 0xff,
+    (i) & 0xff, ((i) >> 8) & 0xff, ((i) >> 16) & 0xff, ((i) >> 24) & 0xff,
 #  define CALLFLAGS(f) f,
 #  define WHYMAGIC(m) m,
 #  define SCALARTYPE(name) uint8_t(Scalar::Type::name),

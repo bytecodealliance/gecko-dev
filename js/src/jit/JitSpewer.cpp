@@ -631,6 +631,8 @@ void jit::DisableChannel(JitSpewChannel channel) {
 
 #endif /* JS_JITSPEW */
 
+#if defined(JS_JITSPEW) || defined(ENABLE_JS_AOT_ICS)
+
 const char* js::jit::ValTypeToString(JSValueType type) {
   switch (type) {
     case JSVAL_TYPE_DOUBLE:
@@ -661,3 +663,5 @@ const char* js::jit::ValTypeToString(JSValueType type) {
       MOZ_CRASH("Unknown JSValueType");
   }
 }
+
+#endif /* defined(JS_JITSPEW) || defined(ENABLE_JS_AOT_ICS) */

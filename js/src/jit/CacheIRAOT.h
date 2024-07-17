@@ -33,7 +33,7 @@ struct CacheIRAOTStub {
   uint32_t stubDataSize;
   const AOTStubFieldData* stubfields;
   size_t stubfieldCount;
-  const uint32_t* operandLastUsed; // length: numOperandIds
+  const uint32_t* operandLastUsed;  // length: numOperandIds
   const uint8_t* data;
   size_t dataLength;
 };
@@ -44,4 +44,4 @@ void FillAOTICs(JSContext* cx, JitZone* zone);
 }  // namespace jit
 }  // namespace js
 
-#endif  /* jit_CacheIRAOT_h */
+#endif /* jit_CacheIRAOT_h */
