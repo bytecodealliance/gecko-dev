@@ -1322,17 +1322,7 @@ class CacheIRStubInfo {
   bool makesGCCalls_;
 
   CacheIRStubInfo(CacheKind kind, ICStubEngine engine, bool makesGCCalls,
-                  uint32_t stubDataOffset, uint32_t codeLength)
-      : codeLength_(codeLength),
-        kind_(kind),
-        engine_(engine),
-        stubDataOffset_(stubDataOffset),
-        makesGCCalls_(makesGCCalls) {
-    MOZ_ASSERT(kind_ == kind, "Kind must fit in bitfield");
-    MOZ_ASSERT(engine_ == engine, "Engine must fit in bitfield");
-    MOZ_ASSERT(stubDataOffset_ == stubDataOffset,
-               "stubDataOffset must fit in uint8_t");
-  }
+                  uint32_t stubDataOffset, uint32_t codeLength);
 
   CacheIRStubInfo(const CacheIRStubInfo&) = delete;
   CacheIRStubInfo& operator=(const CacheIRStubInfo&) = delete;

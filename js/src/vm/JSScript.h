@@ -1783,11 +1783,11 @@ class JSScript : public js::BaseScript {
   }
 
   size_t pcToOffset(const jsbytecode* pc) const {
-    MOZ_ASSERT(containsPC(pc));
-    return size_t(pc - code());
+    return immutableScriptData()->pcToOffset(pc);
   }
 
   jsbytecode* offsetToPC(size_t offset) const {
+    return immutableScriptData()->offsetToPC(offset);
     MOZ_ASSERT(offset < length());
     return code() + offset;
   }
@@ -2006,10 +2006,7 @@ class JSScript : public js::BaseScript {
   }
 
   uint32_t tableSwitchCaseOffset(jsbytecode* pc, uint32_t caseIndex) const {
-    MOZ_ASSERT(containsPC(pc));
-    MOZ_ASSERT(JSOp(*pc) == JSOp::TableSwitch);
-    uint32_t firstResumeIndex = GET_RESUMEINDEX(pc + 3 * JUMP_OFFSET_LEN);
-    return resumeOffsets()[firstResumeIndex + caseIndex];
+    return immutableScriptData()->tableSwitchCaseOffset(pc, caseIndex);
   }
   jsbytecode* tableSwitchCasePC(jsbytecode* pc, uint32_t caseIndex) const {
     return offsetToPC(tableSwitchCaseOffset(pc, caseIndex));

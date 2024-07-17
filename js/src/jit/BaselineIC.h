@@ -113,16 +113,33 @@ void FallbackICSpew(JSContext* cx, ICFallbackStub* stub, const char* fmt, ...)
 class ICEntry {
   // A pointer to the first IC stub for this instruction.
   ICStub* firstStub_;
+#ifdef ENABLE_PORTABLE_BASELINE_INTERP
+  // Cache the JitCode function pointer in the ICEntry itself.
+  uint8_t* jitCode_;
+#endif
 
  public:
-  explicit ICEntry(ICStub* firstStub) : firstStub_(firstStub) {}
+  explicit ICEntry(ICStub* firstStub) : firstStub_(firstStub) {
+    updateJitCode(firstStub);
+  }
 
   ICStub* firstStub() const {
     MOZ_ASSERT(firstStub_);
     return firstStub_;
   }
 
-  void setFirstStub(ICStub* stub) { firstStub_ = stub; }
+  void setFirstStub(ICStub* stub) {
+    firstStub_ = stub;
+    updateJitCode(stub);
+  }
+
+  void updateJitCode(ICStub* stub);
+
+#ifdef ENABLE_PORTABLE_BASELINE_INTERP
+  uint8_t* rawJitCode() const {
+    return jitCode_;
+  }
+#endif
 
   static constexpr size_t offsetOfFirstStub() {
     return offsetof(ICEntry, firstStub_);
@@ -192,11 +209,19 @@ class ICStub {
     // call JitCode::FromExecutable on the raw pointer.
     return isFallback();
   }
+
+#ifndef ENABLE_PORTABLE_BASELINE_INTERP
   JitCode* jitCode() {
     MOZ_ASSERT(!usesTrampolineCode());
     return JitCode::FromExecutable(stubCode_);
   }
   bool hasJitCode() { return !!stubCode_; }
+#else  // !ENABLE_PORTABLE_BASELINE_INTERP
+  JitCode* jitCode() { return nullptr; }
+  bool hasJitCode() { return false; }
+  uint8_t* rawJitCode() const { return stubCode_; }
+  void updateRawJitCode(uint8_t* ptr) { stubCode_ = ptr; }
+#endif
 
   uint32_t enteredCount() const { return enteredCount_; }
   inline void incrementEnteredCount() { enteredCount_++; }
@@ -209,6 +234,12 @@ class ICStub {
     return offsetof(ICStub, enteredCount_);
   }
 };
+
+inline void ICEntry::updateJitCode(ICStub* stub) {
+#ifdef ENABLE_PORTABLE_BASELINE_INTERP
+  jitCode_ = stub->rawJitCode();
+#endif
+}
 
 class ICFallbackStub final : public ICStub {
   friend class ICStubConstIterator;

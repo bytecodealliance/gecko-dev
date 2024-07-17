@@ -22,13 +22,14 @@
 #include "frontend/SourceNotes.h"  // js::SrcNote
 #include "frontend/TypedIndex.h"   // js::frontend::TypedIndex
 
-#include "js/AllocPolicy.h"            // js::SystemAllocPolicy
-#include "js/ColumnNumber.h"           // JS::LimitedColumnNumberOneOrigin
-#include "js/TypeDecls.h"              // JSContext,jsbytecode
-#include "js/UniquePtr.h"              // js::UniquePtr
-#include "js/Vector.h"                 // js::Vector
-#include "util/EnumFlags.h"            // js::EnumFlags
-#include "util/TrailingArray.h"        // js::TrailingArray
+#include "js/AllocPolicy.h"      // js::SystemAllocPolicy
+#include "js/ColumnNumber.h"     // JS::LimitedColumnNumberOneOrigin
+#include "js/TypeDecls.h"        // JSContext,jsbytecode
+#include "js/UniquePtr.h"        // js::UniquePtr
+#include "js/Vector.h"           // js::Vector
+#include "util/EnumFlags.h"      // js::EnumFlags
+#include "util/TrailingArray.h"  // js::TrailingArray
+#include "vm/BytecodeUtil.h"
 #include "vm/GeneratorAndAsyncKind.h"  // GeneratorKind, FunctionAsyncKind
 #include "vm/StencilEnums.h"  // js::{TryNoteKind,ImmutableScriptFlagsEnum,MutableScriptFlagsEnum}
 
@@ -629,6 +630,28 @@ class alignas(uint32_t) ImmutableScriptData final
     return offsetof(ImmutableScriptData, funLength);
   }
 
+  bool containsPC(const jsbytecode* pc) {
+    jsbytecode* codeEnd = code() + codeLength();
+    return pc >= code() && pc < codeEnd;
+  }
+
+  MOZ_ALWAYS_INLINE uint32_t tableSwitchCaseOffset(jsbytecode* pc, uint32_t caseIndex) {
+    MOZ_ASSERT(containsPC(pc));
+    MOZ_ASSERT(JSOp(*pc) == JSOp::TableSwitch);
+    uint32_t firstResumeIndex = GET_RESUMEINDEX(pc + 3 * JUMP_OFFSET_LEN);
+    return resumeOffsets()[firstResumeIndex + caseIndex];
+  }
+
+  size_t pcToOffset(const jsbytecode* pc) {
+    MOZ_ASSERT(containsPC(pc));
+    return size_t(pc - code());
+  }
+
+  jsbytecode* offsetToPC(size_t offset) {
+    MOZ_ASSERT(offset < codeLength());
+    return code() + offset;
+  }
+
   // ImmutableScriptData has trailing data so isn't copyable or movable.
   ImmutableScriptData(const ImmutableScriptData&) = delete;
   ImmutableScriptData& operator=(const ImmutableScriptData&) = delete;
@@ -851,5 +874,21 @@ using FunctionDeclarationVector =
     Vector<FunctionDeclaration, 0, js::SystemAllocPolicy>;
 
 }  // namespace js
+
+// GCThing-related bytecode utility functions defined here to break
+// cyclic header dependency:
+
+static const unsigned GCTHING_INDEX_LEN = 4;
+
+static MOZ_ALWAYS_INLINE js::GCThingIndex GET_GCTHING_INDEX(
+    const jsbytecode* pc) {
+  return js::GCThingIndex(GET_UINT32(pc));
+}
+
+static MOZ_ALWAYS_INLINE void SET_GCTHING_INDEX(jsbytecode* pc,
+                                                js::GCThingIndex index) {
+  SET_UINT32(pc, index.index);
+}
+
 
 #endif /* vm_SharedStencil_h */

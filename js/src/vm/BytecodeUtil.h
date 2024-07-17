@@ -28,7 +28,6 @@
 #include "vm/BytecodeFormatFlags.h"  // JOF_*
 #include "vm/GeneratorResumeKind.h"
 #include "vm/Opcodes.h"
-#include "vm/SharedStencil.h"  // js::GCThingIndex
 #include "vm/ThrowMsgKind.h"   // ThrowMsgKind, ThrowCondition
 
 namespace js {
@@ -142,18 +141,6 @@ static MOZ_ALWAYS_INLINE int32_t GET_JUMP_OFFSET(jsbytecode* pc) {
 
 static MOZ_ALWAYS_INLINE void SET_JUMP_OFFSET(jsbytecode* pc, int32_t off) {
   SET_INT32(pc, off);
-}
-
-static const unsigned GCTHING_INDEX_LEN = 4;
-
-static MOZ_ALWAYS_INLINE js::GCThingIndex GET_GCTHING_INDEX(
-    const jsbytecode* pc) {
-  return js::GCThingIndex(GET_UINT32(pc));
-}
-
-static MOZ_ALWAYS_INLINE void SET_GCTHING_INDEX(jsbytecode* pc,
-                                                js::GCThingIndex index) {
-  SET_UINT32(pc, index.index);
 }
 
 // Index limit is determined by SrcNote::FourByteOffsetFlag, see
