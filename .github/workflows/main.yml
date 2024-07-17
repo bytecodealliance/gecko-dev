@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         test: [jstests, jit-test]
-        mozconfig: [ debug, pbl-debug, pbl-release, release ]
+        mozconfig: [ debug, pbl-debug, pbl-release, release, aot-ics-release ]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3

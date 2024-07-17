@@ -6,9 +6,13 @@
 
 #include "jit/BaselineCacheIRCompiler.h"
 
+#include "mozilla/RandomNum.h"
+
 #include "gc/GC.h"
 #include "jit/CacheIR.h"
+#include "jit/CacheIRAOT.h"
 #include "jit/CacheIRCloner.h"
+#include "jit/CacheIRSpewer.h"
 #include "jit/CacheIRWriter.h"
 #include "jit/JitFrames.h"
 #include "jit/JitRuntime.h"
@@ -2499,6 +2503,122 @@ static bool AddToFoldedStub(JSContext* cx, const CacheIRWriter& writer,
   return true;
 }
 
+#ifdef ENABLE_JS_AOT_ICS
+void DumpNonAOTICStubAndQuit(CacheKind kind, const CacheIRWriter& writer) {
+  // Generate a random filename (unlikely to conflict with others).
+  char filename[64];
+  snprintf(filename, sizeof(filename), "IC-%" PRIu64,
+           mozilla::RandomUint64OrDie());
+  FILE* f = fopen(filename, "w");
+  MOZ_RELEASE_ASSERT(f);
+
+  // Generate the CacheIR text to dump to a file.
+  {
+    Fprinter printer(f);
+    SpewCacheIROpsAsAOT(printer, kind, writer);
+  }
+  fflush(f);
+  fclose(f);
+  fprintf(stderr, "UNEXPECTED NEW IC BODY\n");
+
+  fprintf(stderr,
+          "Please add the file '%s' to the ahead-of-time known IC bodies in "
+          "js/src/ics/.\n"
+          "\n"
+          "To keep running and dump all new ICs (useful for updating with "
+          "test-suites),\n"
+          "set the environment variable AOT_ICS_KEEP_GOING=1 and rerun.\n",
+          filename);
+
+  if (!getenv("AOT_ICS_KEEP_GOING")) {
+    abort();
+  }
+}
+#endif
+
+static constexpr uint32_t kStubDataOffset = sizeof(ICCacheIRStub);
+static_assert(kStubDataOffset % sizeof(uint64_t) == 0,
+              "Stub fields must be aligned");
+
+static bool LookupOrCompileStub(JSContext* cx, CacheKind kind,
+                                const CacheIRWriter& writer,
+                                CacheIRStubInfo*& stubInfo, JitCode*& code,
+                                const char* name, bool isAOTFill,
+                                JitZone* jitZone) {
+  CacheIRStubKey::Lookup lookup(kind, ICStubEngine::Baseline,
+                                writer.codeStart(), writer.codeLength());
+
+  code = jitZone->getBaselineCacheIRStubCode(lookup, &stubInfo);
+
+#ifdef ENABLE_JS_AOT_ICS
+  if (JitOptions.enableAOTICEnforce && !stubInfo && !isAOTFill &&
+      !jitZone->isIncompleteAOTICs()) {
+    DumpNonAOTICStubAndQuit(kind, writer);
+  }
+#endif
+
+  if (!code && !IsPortableBaselineInterpreterEnabled()) {
+    // We have to generate stub code.
+    TempAllocator temp(&cx->tempLifoAlloc());
+    JitContext jctx(cx);
+    BaselineCacheIRCompiler comp(cx, temp, writer, kStubDataOffset);
+    if (!comp.init(kind)) {
+      return false;
+    }
+
+    code = comp.compile();
+    if (!code) {
+      return false;
+    }
+
+    comp.perfSpewer().saveProfile(code, name);
+
+    // Allocate the shared CacheIRStubInfo. Note that the
+    // putBaselineCacheIRStubCode call below will transfer ownership
+    // to the stub code HashMap, so we don't have to worry about freeing
+    // it below.
+    MOZ_ASSERT(!stubInfo);
+    stubInfo =
+        CacheIRStubInfo::New(kind, ICStubEngine::Baseline, comp.makesGCCalls(),
+                             kStubDataOffset, writer);
+    if (!stubInfo) {
+      return false;
+    }
+
+    CacheIRStubKey key(stubInfo);
+    if (!jitZone->putBaselineCacheIRStubCode(lookup, key, code)) {
+      return false;
+    }
+  } else if (!stubInfo) {
+    MOZ_ASSERT(IsPortableBaselineInterpreterEnabled());
+
+    // Portable baseline interpreter case. We want to generate the
+    // CacheIR bytecode but not compile it to native code.
+    //
+    // We lie that all stubs make GC calls; this is simpler than
+    // iterating over ops to determine if it is actually the base, and
+    // we don't invoke the BaselineCacheIRCompiler so we otherwise
+    // don't know for sure.
+    stubInfo = CacheIRStubInfo::New(kind, ICStubEngine::Baseline,
+                                    /* makes GC calls = */ true,
+                                    kStubDataOffset, writer);
+    if (!stubInfo) {
+      return false;
+    }
+
+    CacheIRStubKey key(stubInfo);
+    if (!jitZone->putBaselineCacheIRStubCode(lookup, key,
+                                             /* stubCode = */ nullptr)) {
+      return false;
+    }
+  }
+  MOZ_ASSERT_IF(IsBaselineInterpreterEnabled(), code);
+  MOZ_ASSERT(stubInfo);
+  MOZ_ASSERT(stubInfo->stubDataSize() == writer.stubDataSize());
+
+  return true;
+}
+
 ICAttachResult js::jit::AttachBaselineCacheIRStub(
     JSContext* cx, const CacheIRWriter& writer, CacheKind kind,
     JSScript* outerScript, ICScript* icScript, ICFallbackStub* stub,
@@ -2522,77 +2642,14 @@ ICAttachResult js::jit::AttachBaselineCacheIRStub(
   MOZ_ASSERT(stub->numOptimizedStubs() < MaxOptimizedCacheIRStubs);
 #endif
 
-  constexpr uint32_t stubDataOffset = sizeof(ICCacheIRStub);
-  static_assert(stubDataOffset % sizeof(uint64_t) == 0,
-                "Stub fields must be aligned");
-
-  JitZone* jitZone = cx->zone()->jitZone();
-
   // Check if we already have JitCode for this stub.
   CacheIRStubInfo* stubInfo;
-  CacheIRStubKey::Lookup lookup(kind, ICStubEngine::Baseline,
-                                writer.codeStart(), writer.codeLength());
+  JitCode* code;
 
-  JitCode* code = jitZone->getBaselineCacheIRStubCode(lookup, &stubInfo);
-
-  if (!code && !IsPortableBaselineInterpreterEnabled()) {
-    // We have to generate stub code.
-    TempAllocator temp(&cx->tempLifoAlloc());
-    JitContext jctx(cx);
-    BaselineCacheIRCompiler comp(cx, temp, writer, stubDataOffset);
-    if (!comp.init(kind)) {
-      return ICAttachResult::OOM;
-    }
-
-    code = comp.compile();
-    if (!code) {
-      return ICAttachResult::OOM;
-    }
-
-    comp.perfSpewer().saveProfile(code, name);
-
-    // Allocate the shared CacheIRStubInfo. Note that the
-    // putBaselineCacheIRStubCode call below will transfer ownership
-    // to the stub code HashMap, so we don't have to worry about freeing
-    // it below.
-    MOZ_ASSERT(!stubInfo);
-    stubInfo =
-        CacheIRStubInfo::New(kind, ICStubEngine::Baseline, comp.makesGCCalls(),
-                             stubDataOffset, writer);
-    if (!stubInfo) {
-      return ICAttachResult::OOM;
-    }
-
-    CacheIRStubKey key(stubInfo);
-    if (!jitZone->putBaselineCacheIRStubCode(lookup, key, code)) {
-      return ICAttachResult::OOM;
-    }
-  } else if (!stubInfo) {
-    MOZ_ASSERT(IsPortableBaselineInterpreterEnabled());
-
-    // Portable baseline interpreter case. We want to generate the
-    // CacheIR bytecode but not compile it to native code.
-    //
-    // We lie that all stubs make GC calls; this is simpler than
-    // iterating over ops to determine if it is actually the base, and
-    // we don't invoke the BaselineCacheIRCompiler so we otherwise
-    // don't know for sure.
-    stubInfo = CacheIRStubInfo::New(kind, ICStubEngine::Baseline,
-                                    /* makes GC calls = */ true, stubDataOffset,
-                                    writer);
-    if (!stubInfo) {
-      return ICAttachResult::OOM;
-    }
-
-    CacheIRStubKey key(stubInfo);
-    if (!jitZone->putBaselineCacheIRStubCode(lookup, key,
-                                             /* stubCode = */ nullptr)) {
-      return ICAttachResult::OOM;
-    }
+  if (!LookupOrCompileStub(cx, kind, writer, stubInfo, code, name,
+                           /* isAOTFill = */ false, cx->zone()->jitZone())) {
+    return ICAttachResult::OOM;
   }
-  MOZ_ASSERT_IF(IsBaselineInterpreterEnabled(), code);
-  MOZ_ASSERT(stubInfo);
-  MOZ_ASSERT(stubInfo->stubDataSize() == writer.stubDataSize());
 
   ICEntry* icEntry = icScript->icEntryForStub(stub);
 
@@ -2651,7 +2708,7 @@ ICAttachResult js::jit::AttachBaselineCacheIRStub(
 
   size_t bytesNeeded = stubInfo->stubDataOffset() + stubInfo->stubDataSize();
 
-  void* newStubMem = jitZone->stubSpace()->alloc(bytesNeeded);
+  void* newStubMem = cx->zone()->jitZone()->stubSpace()->alloc(bytesNeeded);
   if (!newStubMem) {
     return ICAttachResult::OOM;
   }
@@ -2687,6 +2744,35 @@ ICAttachResult js::jit::AttachBaselineCacheIRStub(
   owningScript->updateLastICStubCounter();
   return ICAttachResult::Attached;
 }
+
+#ifdef ENABLE_JS_AOT_ICS
+
+#  ifndef ENABLE_PORTABLE_BASELINE_INTERP
+// The AOT loading of ICs doesn't work (yet) in modes with a native
+// JIT enabled because compilation tries to access state that doesn't
+// exist yet (trampolines?) when we create the JitZone.
+#    error AOT ICs are only supported (for now) in PBL builds.
+#  endif
+
+void js::jit::FillAOTICs(JSContext* cx, JitZone* zone) {
+  if (JitOptions.enableAOTICs) {
+    for (auto& stub : GetAOTStubs()) {
+      CacheIRWriter writer(cx, stub);
+      if (writer.failed()) {
+        zone->setIncompleteAOTICs();
+        break;
+      }
+      CacheIRStubInfo* stubInfo;
+      JitCode* code;
+      (void)LookupOrCompileStub(cx, stub.kind, writer, stubInfo, code,
+                                "aot stub",
+                                /* isAOTFill = */ true, zone);
+      (void)stubInfo;
+      (void)code;
+    }
+  }
+}
+#endif
 
 uint8_t* ICCacheIRStub::stubDataStart() {
   return reinterpret_cast<uint8_t*>(this) + stubInfo_->stubDataOffset();
