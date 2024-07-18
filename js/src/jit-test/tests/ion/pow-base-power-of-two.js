@@ -2,6 +2,8 @@
 //
 // Lowering provides a specialisation when the base operand is a constant which
 // is a power of two.
+//
+// Skip on PBL built in debug mode to avoid test timeouts.
 
 load(libdir + "math.js");
 

@@ -324,7 +324,7 @@ struct ICRegs {
   // `uint64_t`) and `icTags` contains the tag bits. An operator that
   // requires a tagged Value can OR the two together (this corresponds
   // to `useValueRegister` rather than `useRegister` in the native
-  // bavseline compiler).
+  // baseline compiler).
   uint64_t icVals[kMaxICVals];
   uint64_t icTags[kMaxICVals];  // Shifted tags.
   int extraArgs;
@@ -2652,7 +2652,7 @@ uint64_t ICInterpretOps(uint64_t arg0, uint64_t arg1, ICStub* stub,
           }
         } else {
           char16_t c;
-          // Guaranteed to be always work because this CacheIR op is
+          // Guaranteed to always work because this CacheIR op is
           // always preceded by LinearizeForCharAccess.
           MOZ_ALWAYS_TRUE(str->getChar(/* cx = */ nullptr, index, &c));
           StaticStrings& sstr =
@@ -2690,7 +2690,7 @@ uint64_t ICInterpretOps(uint64_t arg0, uint64_t arg1, ICStub* stub,
           }
         } else {
           char16_t c;
-          // Guaranteed to be always work because this CacheIR op is
+          // Guaranteed to always work because this CacheIR op is
           // always preceded by LinearizeForCharAccess.
           MOZ_ALWAYS_TRUE(str->getChar(/* cx = */ nullptr, index, &c));
           result = Int32Value(c);
@@ -6365,10 +6365,11 @@ PBIResult PortableBaselineInterpret(JSContext* cx_, State& state, Stack& stack,
           if (v0.isInt32() && v1.isInt32()) {
             int64_t lhs = v1.toInt32();
             int64_t rhs = v0.toInt32();
-            if (lhs + rhs >= int64_t(INT32_MIN) &&
-                lhs + rhs <= int64_t(INT32_MAX)) {
+            int64_t result = lhs + rhs;
+            if (result >= int64_t(INT32_MIN) &&
+                result <= int64_t(INT32_MAX)) {
               VIRTPOP();
-              VIRTSPWRITE(0, StackVal(Int32Value(int32_t(lhs + rhs))));
+              VIRTSPWRITE(0, StackVal(Int32Value(int32_t(result))));
               NEXT_IC();
               END_OP(Add);
             }
@@ -6405,10 +6406,11 @@ PBIResult PortableBaselineInterpret(JSContext* cx_, State& state, Stack& stack,
           if (v0.isInt32() && v1.isInt32()) {
             int64_t lhs = v1.toInt32();
             int64_t rhs = v0.toInt32();
-            if (lhs - rhs >= int64_t(INT32_MIN) &&
-                lhs - rhs <= int64_t(INT32_MAX)) {
+            int64_t result = lhs - rhs;
+            if (result >= int64_t(INT32_MIN) &&
+                result <= int64_t(INT32_MAX)) {
               VIRTPOP();
-              VIRTSPWRITE(0, StackVal(Int32Value(int32_t(lhs - rhs))));
+              VIRTSPWRITE(0, StackVal(Int32Value(int32_t(result))));
               NEXT_IC();
               END_OP(Sub);
             }

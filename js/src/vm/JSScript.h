@@ -1787,8 +1787,6 @@ class JSScript : public js::BaseScript {
   }
 
   jsbytecode* offsetToPC(size_t offset) const {
-    return immutableScriptData()->offsetToPC(offset);
-    MOZ_ASSERT(offset < length());
     return code() + offset;
   }
 
