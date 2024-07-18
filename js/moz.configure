@@ -240,6 +240,21 @@ set_config(
     depends_if("--enable-portable-baseline-interp-force")(lambda _: True),
 )
 
+# weval support (ahead-of-time interpreter compilation in Wasm) for PBL.
+option(
+    "--enable-pbl-weval",
+    default=False,
+    help="{Support|Do not support} wevaling the PBL interpreter",
+)
+
+@depends("--enable-portable-baseline-interp", "--enable-pbl-weval")
+def js_pbl_weval(pbl, weval):
+    if pbl and weval:
+        return True
+
+set_define("ENABLE_JS_PBL_WEVAL", js_pbl_weval)
+set_config("ENABLE_JS_PBL_WEVAL", js_pbl_weval)
+
 # Enable ahead-of-time-known preloaded IC bodies.
 option(
     "--enable-aot-ics",

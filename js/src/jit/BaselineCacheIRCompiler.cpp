@@ -29,6 +29,7 @@
 #include "util/Unicode.h"
 #include "vm/PortableBaselineInterpret.h"
 #include "vm/StaticStrings.h"
+#include "vm/Weval.h"
 
 #include "jit/JitScript-inl.h"
 #include "jit/MacroAssembler-inl.h"
@@ -2612,6 +2613,11 @@ static bool LookupOrCompileStub(JSContext* cx, CacheKind kind,
                                              /* stubCode = */ nullptr)) {
       return false;
     }
+
+#ifdef ENABLE_JS_PBL_WEVAL
+  // Register for weval specialization, if enabled.
+  js::pbl::EnqueueICStubSpecialization(stubInfo);
+#endif
   }
   MOZ_ASSERT_IF(IsBaselineInterpreterEnabled(), code);
   MOZ_ASSERT(stubInfo);
@@ -2739,7 +2745,14 @@ ICAttachResult js::jit::AttachBaselineCacheIRStub(
   newStub->setTypeData(writer.typeData());
 
 #ifdef ENABLE_PORTABLE_BASELINE_INTERP
+#  ifdef ENABLE_JS_PBL_WEVAL
+  newStub->updateRawJitCode(
+      (stubInfo->hasWeval() && stubInfo->weval().func)
+          ? reinterpret_cast<uint8_t*>(stubInfo->weval().func)
+          : pbl::GetICInterpreter());
+#  else
   newStub->updateRawJitCode(pbl::GetICInterpreter());
+#  endif
 #endif
 
   stub->addNewStub(icEntry, newStub);

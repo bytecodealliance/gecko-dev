@@ -311,3 +311,8 @@ if CONFIG["ENABLE_JS_AOT_ICS"]:
 
 if CONFIG["FUZZING_INTERFACES"] or CONFIG["FUZZING_JS_FUZZILLI"]:
     include("/tools/fuzzing/libfuzzer-config.mozbuild")
+
+if CONFIG["ENABLE_JS_PBL_WEVAL"]:
+    LOCAL_INCLUDES += [
+        "../../../third_party/weval"
+    ]
