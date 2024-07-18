@@ -2035,6 +2035,12 @@ uint64_t ICInterpretOps(uint64_t arg0, uint64_t arg1, ICStub* stub,
           FAIL_IC();
         }
 
+        // Fail constructing on a non-constructor callee.
+        if (flags.isConstructing() && !callee->isConstructor()) {
+          TRACE_PRINTF("failing: constructing a non-constructor\n");
+          FAIL_IC();
+        }
+
         // Handle arg-underflow (but only for scripted targets).
         uint32_t undefArgs = (!isNative && (argc < callee->nargs()))
                                  ? (callee->nargs() - argc)
@@ -7713,6 +7719,11 @@ PBIResult PortableBaselineInterpret(JSContext* cx_, State& state, Stack& stack,
             if (!constructing && func->isClassConstructor()) {
               TRACE_PRINTF(
                   "missed fastpath: constructor called without `new`\n");
+              break;
+            }
+            if (constructing && !func->isConstructor()) {
+              TRACE_PRINTF(
+                  "missed fastpath: constructing with a non-constructor\n");
               break;
             }
             if (!func->baseScript()->hasBytecode()) {
