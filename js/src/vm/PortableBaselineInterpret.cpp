@@ -4635,7 +4635,7 @@ uint64_t ICInterpretOps(uint64_t arg0, uint64_t arg1, ICStub* stub,
         bool result =
             obj->shape()->realm() !=
                 ctx.frameMgr.cxForLocalUseOnly()->realm() &&
-            obj->is<JSFunction>() &&
+            obj->is<JSFunction>() && obj->as<JSFunction>().isNativeFun() &&
             obj->as<JSFunction>().nativeUnchecked() == &js::ArrayConstructor;
         retValue = BooleanValue(result).asRawBits();
         PREDICT_RETURN();
