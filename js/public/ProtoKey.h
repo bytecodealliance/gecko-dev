@@ -162,6 +162,25 @@
   REAL_IF_TEMPORAL(TemporalNow, OCLASP(temporal::TemporalNow))              \
   REAL_IF_TEMPORAL(TimeZone, OCLASP(temporal::TimeZone))                    \
   REAL_IF_TEMPORAL(ZonedDateTime, OCLASP(temporal::ZonedDateTime))          \
+  IF_JS_STREAMS(REAL(ReadableStream, &js::ReadableStream::class_))             \
+  IF_JS_STREAMS(REAL(ReadableStreamBYOBReader,                                 \
+                    &js::ReadableStreamBYOBReader::class_))                    \
+  IF_JS_STREAMS(REAL(ReadableStreamBYOBRequest,                                \
+                    &js::ReadableStreamBYOBRequest::class_))                   \
+  IF_JS_STREAMS(REAL(ReadableStreamDefaultReader,                              \
+                     &js::ReadableStreamDefaultReader::class_))                \
+  IF_JS_STREAMS(REAL(ReadableStreamDefaultController,                          \
+                     &js::ReadableStreamDefaultController::class_))            \
+  IF_JS_STREAMS(REAL(ReadableByteStreamController,                             \
+                     &js::ReadableByteStreamController::class_))               \
+  IF_JS_STREAMS(REAL(WritableStream, &js::WritableStream::class_))             \
+  IF_JS_STREAMS(REAL(WritableStreamDefaultController,                          \
+                     &js::WritableStreamDefaultController::class_))            \
+  IF_JS_STREAMS(REAL(WritableStreamDefaultWriter,                              \
+                     &js::WritableStreamDefaultWriter::class_))                \
+  IF_JS_STREAMS(                                                               \
+      REAL(ByteLengthQueuingStrategy, &js::ByteLengthQueuingStrategy::class_)) \
+  IF_JS_STREAMS(REAL(CountQueuingStrategy, &js::CountQueuingStrategy::class_)) \
   IF_RECORD_TUPLE(REAL(Record, (&RecordType::class_)))                      \
   IF_RECORD_TUPLE(REAL(Tuple, (&TupleType::class_)))
 

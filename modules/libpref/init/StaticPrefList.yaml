@@ -4200,6 +4200,46 @@
   value: false
   mirror: always
 
+# DOM Streams Prefs
+
+## Exposure Prefs: To ensure the DOM Streams don't expose more
+# than existing JS Streams implementation, we want to hide some
+# interfaces from the global until later.
+- name: dom.streams.readable_stream_default_controller.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.readable_stream_default_reader.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.byte_streams.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.writable_streams.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.transform_streams.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.pipeTo.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.transferable.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # For area and anchor elements with target=_blank and no rel set to
 # opener/noopener.
 - name: dom.targetBlankNoOpener.enabled
@@ -8031,6 +8071,22 @@
   value: true
   mirror: always  # LoadStartupJSPrefs
   do_not_use_directly: true
+
+# Streams API. This only applies to JS Streams
+- name: javascript.options.streams
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# Writable Streams API.  (The pref above must also be set to expose this.)
+#
+# Writable streams are still EXTRAORDINARILY BETA and it is well-known that
+# things are likely pretty broken if you poke much at all, so if you flip this
+# preference, don't report bugs against it just yet.
+- name: javascript.options.writable_streams
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 - name: javascript.options.main_thread_stack_quota_cap
   type: uint32_t

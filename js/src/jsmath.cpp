@@ -536,6 +536,12 @@ Realm::getOrCreateRandomNumberGenerator() {
   return randomNumberGenerator_.ref();
 }
 
+void Realm::resetRandomNumberGenerator() {
+  if (randomNumberGenerator_.isSome()) {
+    randomNumberGenerator_.reset();
+  }
+}
+
 double js::math_random_impl(JSContext* cx) {
   return cx->realm()->getOrCreateRandomNumberGenerator().nextDouble();
 }

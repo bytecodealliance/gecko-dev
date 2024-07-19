@@ -7,7 +7,7 @@
  * https://streams.spec.whatwg.org/#ws-default-controller-class-definition
  */
 
-[Exposed=*]
+[Exposed=*, Pref="dom.streams.writable_streams.enabled"]
 interface WritableStreamDefaultController {
   readonly attribute AbortSignal signal;
   [Throws]

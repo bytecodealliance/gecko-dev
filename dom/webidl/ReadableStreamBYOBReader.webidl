@@ -7,7 +7,7 @@
  * https://streams.spec.whatwg.org/#byob-reader-class-definition
  */
 
-[Exposed=*]
+[Exposed=*, Pref="dom.streams.byte_streams.enabled"]
 interface ReadableStreamBYOBReader {
   [Throws]
   constructor(ReadableStream stream);
