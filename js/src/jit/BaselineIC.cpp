@@ -32,6 +32,7 @@
 #include "vm/JSFunction.h"
 #include "vm/JSScript.h"
 #include "vm/Opcodes.h"
+#include "vm/PortableBaselineInterpret.h"
 #ifdef MOZ_VTUNE
 #  include "vtune/VTuneWrapper.h"
 #endif
@@ -405,17 +406,18 @@ void ICScript::initICEntries(JSContext* cx, JSScript* script) {
                "Unexpected fallback kind for non-JOF_IC op");
 
     BaselineICFallbackKind kind = BaselineICFallbackKind(tableValue);
-    TrampolinePtr stubCode = !jit::IsPortableBaselineInterpreterEnabled()
-                                 ? fallbackCode.addr(kind)
-                                 : TrampolinePtr();
+    TrampolinePtr stubCode =
+        !jit::IsPortableBaselineInterpreterEnabled()
+            ? fallbackCode.addr(kind)
+            : TrampolinePtr(js::pbl::GetPortableFallbackStub(kind));
 
     // Initialize the ICEntry and ICFallbackStub.
     uint32_t offset = loc.bytecodeToOffset(script);
     ICEntry& entryRef = this->icEntry(icEntryIndex);
     ICFallbackStub* stub = fallbackStub(icEntryIndex);
     icEntryIndex++;
-    new (&entryRef) ICEntry(stub);
     new (stub) ICFallbackStub(offset, stubCode);
+    new (&entryRef) ICEntry(stub);
   }
 
   // Assert all ICEntries have been initialized.
@@ -489,6 +491,12 @@ static void MaybeTransition(JSContext* cx, BaselineFrame* frame,
 template <typename IRGenerator, typename... Args>
 static void TryAttachStub(const char* name, JSContext* cx, BaselineFrame* frame,
                           ICFallbackStub* stub, Args&&... args) {
+#ifdef ENABLE_PORTABLE_BASELINE_INTERP
+  if (frame->script()->getWarmUpCount() <
+      JitOptions.portableBaselineInterpreterAttachThreshold) {
+    return;
+  }
+#endif
   MaybeTransition(cx, frame, stub);
 
   if (stub->state().canAttachStub()) {

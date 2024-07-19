@@ -1712,10 +1712,6 @@ void ArrayBufferObject::wasmDiscard(Handle<ArrayBufferObject*> buf,
   buf->contents().wasmBuffer()->discard(byteOffset, byteLen);
 }
 
-uint32_t ArrayBufferObject::flags() const {
-  return uint32_t(getFixedSlot(FLAGS_SLOT).toInt32());
-}
-
 void ArrayBufferObject::setFlags(uint32_t flags) {
   setFixedSlot(FLAGS_SLOT, Int32Value(flags));
 }

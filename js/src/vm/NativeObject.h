@@ -287,9 +287,11 @@ class ObjectElements {
   /* 'length' property of array objects, unused for other objects. */
   uint32_t length;
 
+public:
   bool hasNonwritableArrayLength() const {
     return flags & NONWRITABLE_ARRAY_LENGTH;
   }
+private:
   void setNonwritableArrayLength() {
     // See ArrayObject::setNonWritableLength.
     MOZ_ASSERT(capacity == initializedLength);
@@ -333,13 +335,17 @@ class ObjectElements {
   void markNonPacked() { flags |= NON_PACKED; }
 
   void markMaybeInIteration() { flags |= MAYBE_IN_ITERATION; }
+public:
   bool maybeInIteration() { return flags & MAYBE_IN_ITERATION; }
+private:
 
   void setNotExtensible() {
     MOZ_ASSERT(!isNotExtensible());
     flags |= NOT_EXTENSIBLE;
   }
+public:
   bool isNotExtensible() { return flags & NOT_EXTENSIBLE; }
+private:
 
   void seal() {
     MOZ_ASSERT(isNotExtensible());

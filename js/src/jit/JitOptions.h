@@ -105,6 +105,7 @@ struct DefaultJitOptions {
   uint32_t regexpWarmUpThreshold;
 #ifdef ENABLE_PORTABLE_BASELINE_INTERP
   uint32_t portableBaselineInterpreterWarmUpThreshold;
+  uint32_t portableBaselineInterpreterAttachThreshold;
 #endif
   uint32_t exceptionBailoutThreshold;
   uint32_t frequentBailoutThreshold;

@@ -68,7 +68,7 @@ class CompactBufferReader {
       : buffer_(start), end_(end) {}
   inline explicit CompactBufferReader(const CompactBufferWriter& writer);
   uint8_t readByte() {
-    MOZ_ASSERT(buffer_ < end_);
+    MOZ_ASSERT_IF(end_, buffer_ < end_);
     return *buffer_++;
   }
   uint32_t readFixedUint32_t() {
@@ -117,14 +117,14 @@ class CompactBufferReader {
   }
 
   bool more() const {
-    MOZ_ASSERT(buffer_ <= end_);
+    MOZ_ASSERT_IF(end_, buffer_ <= end_);
     return buffer_ < end_;
   }
 
   void seek(const uint8_t* start, uint32_t offset) {
     buffer_ = start + offset;
-    MOZ_ASSERT(start < end_);
-    MOZ_ASSERT(buffer_ <= end_);
+    MOZ_ASSERT_IF(end_, start < end_);
+    MOZ_ASSERT_IF(end_, buffer_ <= end_);
   }
 
   const uint8_t* currentPosition() const { return buffer_; }

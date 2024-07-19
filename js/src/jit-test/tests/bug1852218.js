@@ -1,5 +1,5 @@
-// |jit-test| skip-if: getBuildConfiguration("arm64-simulator") === true
-// This test times out in ARM64 simulator builds.
+// |jit-test| skip-if: getBuildConfiguration("arm64-simulator") === true || (getBuildConfiguration('debug') == true && getBuildConfiguration('pbl') == true)
+// This test times out in ARM64 simulator builds, and in debug-mode PBL-only builds.
 
 function makeIonCompiledScript(n) {
   let src = "";

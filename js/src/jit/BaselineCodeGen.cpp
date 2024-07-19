@@ -6232,7 +6232,9 @@ bool BaselineInterpreterCodeGen::emit_JumpTarget() {
 
   // Compute ICEntry* and store to frame->interpreterICEntry.
   masm.loadPtr(frame.addressOfICScript(), scratch2);
+#ifndef ENABLE_PORTABLE_BASELINE_INTERP
   static_assert(sizeof(ICEntry) == sizeof(uintptr_t));
+#endif
   masm.computeEffectiveAddress(BaseIndex(scratch2, scratch1, ScalePointer,
                                          ICScript::offsetOfICEntries()),
                                scratch2);

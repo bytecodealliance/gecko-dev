@@ -568,7 +568,9 @@ class ArrayBufferObject : public ArrayBufferObjectMaybeShared {
 
   size_t associatedBytes() const;
 
-  uint32_t flags() const;
+  uint32_t flags() const {
+    return uint32_t(getFixedSlot(FLAGS_SLOT).toInt32());
+  }
   void setFlags(uint32_t flags);
 
   void setIsDetached() {
