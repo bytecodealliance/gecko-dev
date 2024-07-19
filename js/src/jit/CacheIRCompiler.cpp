@@ -46,6 +46,7 @@
 #include "vm/GetterSetter.h"
 #include "vm/Interpreter.h"
 #include "vm/Uint8Clamped.h"
+#include "vm/Weval.h"
 
 #include "builtin/Boolean-inl.h"
 #include "jit/MacroAssembler-inl.h"
@@ -1259,6 +1260,15 @@ ICCacheIRStub* ICCacheIRStub::clone(JSRuntime* rt, ICStubSpace& newSpace) {
 
   return newStub;
 }
+
+#ifdef ENABLE_JS_PBL_WEVAL
+Weval& CacheIRStubInfo::weval() {
+  if (!weval_) {
+    weval_ = MakeUnique<Weval>();
+  }
+  return *weval_;
+}
+#endif
 
 template <typename T>
 static inline bool ShouldTraceWeakEdgeInStub(JSTracer* trc) {

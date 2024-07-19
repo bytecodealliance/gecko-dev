@@ -51,8 +51,8 @@
 #include "vm/JSScript.h"
 #include "vm/Opcodes.h"
 #include "vm/PlainObject.h"
-#include "vm/PortableBaselineInterpret-defs.h"
 #include "vm/Shape.h"
+#include "vm/Weval.h"
 
 #include "debugger/DebugAPI-inl.h"
 #include "jit/BaselineFrame-inl.h"
@@ -61,6 +61,13 @@
 #include "vm/Interpreter-inl.h"
 #include "vm/JSScript-inl.h"
 #include "vm/PlainObject-inl.h"
+
+#ifdef ENABLE_JS_PBL_WEVAL
+WEVAL_DEFINE_GLOBALS()
+#  include "vm/PortableBaselineInterpret-weval-defs.h"
+#else
+#  include "vm/PortableBaselineInterpret-defs.h"
+#endif
 
 namespace js {
 namespace pbl {
@@ -9304,6 +9311,66 @@ bool PortablebaselineInterpreterStackCheck(JSContext* cx, RunState& state,
   ssize_t needed = numActualArgs + state.script()->nslots() + margin;
   return (top - base) >= needed;
 }
+
+#ifdef ENABLE_JS_PBL_WEVAL
+
+// IDs for interpreter bodies that we weval, so that we can stably
+// associate collected request bodies with interpreters even when
+// SpiderMonkey is relinked and actual function pointer values may
+// change.
+static const uint32_t WEVAL_JSOP_ID = 1;
+static const uint32_t WEVAL_IC_ID = 2;
+
+WEVAL_DEFINE_TARGET(1, (PortableBaselineInterpret<true, false, true>));
+WEVAL_DEFINE_TARGET(2, (ICInterpretOps<true>));
+
+void EnqueueScriptSpecialization(JSScript* script) {
+  Weval& weval = script->weval();
+  if (!weval.req) {
+    using weval::Runtime;
+    using weval::Specialize;
+    using weval::SpecializeMemory;
+
+    jsbytecode* pc = script->code();
+    uint32_t pc_len = script->length();
+    ImmutableScriptData* isd = script->immutableScriptData();
+    uint32_t isd_len = isd->immutableData().Length();
+
+    weval.req = weval::weval(
+        reinterpret_cast<PBIFunc*>(&weval.func),
+        &PortableBaselineInterpret<true, false, false>, WEVAL_JSOP_ID,
+        /* num_globals = */ 2,
+        Specialize<uint64_t>(script->argsObjAliasesFormals() ? 1 : 0),
+        Specialize<uint64_t>(script->nfixed()), Runtime<JSContext*>(),
+        Runtime<State&>(), Runtime<Stack&>(), Runtime<StackVal*>(),
+        Runtime<JSObject*>(), Runtime<Value*>(),
+        SpecializeMemory<jsbytecode*>(pc, pc_len), Specialize<uint32_t>(0),
+        SpecializeMemory<ImmutableScriptData*>(isd, isd_len),
+        Runtime<jsbytecode*>(), Runtime<BaselineFrame*>(), Runtime<StackVal*>(),
+        Runtime<PBIResult>());
+  }
+}
+
+void EnqueueICStubSpecialization(CacheIRStubInfo* stubInfo) {
+  Weval& weval = stubInfo->weval();
+  if (!weval.req) {
+    using weval::Runtime;
+    using weval::SpecializeMemory;
+
+    // StubInfo length: do not include the `Weval` object pointer, as
+    // it is nondeterministic.
+    uint32_t len = sizeof(CacheIRStubInfo) - sizeof(void*);
+
+    weval.req =
+        weval::weval(reinterpret_cast<ICStubFunc*>(&weval.func),
+                     &ICInterpretOps<true>, WEVAL_IC_ID, /* num_globals = */ 2,
+                     SpecializeMemory<CacheIRStubInfo*>(stubInfo, len),
+                     SpecializeMemory<const uint8_t*>(stubInfo->code(),
+                                                      stubInfo->codeLength()));
+  }
+}
+
+#endif  // ENABLE_JS_PBL_WEVAL
 
 }  // namespace pbl
 }  // namespace js

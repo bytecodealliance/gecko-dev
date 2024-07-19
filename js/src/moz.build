@@ -676,3 +676,8 @@ if CONFIG["JS_HAS_INTL_API"]:
     ]
 
     USE_LIBS += ["intlcomponents"]
+
+if CONFIG["ENABLE_JS_PBL_WEVAL"]:
+    LOCAL_INCLUDES += [
+        "../../third_party/weval"
+    ]
