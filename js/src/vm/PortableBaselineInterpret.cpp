@@ -4618,12 +4618,7 @@ uint64_t ICInterpretOps(uint64_t arg0, uint64_t arg1, ICStub* stub,
       CACHEOP_CASE(IsConstructorResult) {
         ObjOperandId objId = cacheIRReader.objOperandId();
         JSObject* obj = reinterpret_cast<JSObject*>(READ_REG(objId.id()));
-        if (obj->getClass()->isProxyObject()) {
-          FAIL_IC();
-        }
-        bool ctor =
-            (obj->is<JSFunction>() && obj->as<JSFunction>().isConstructor()) ||
-            obj->getClass()->getConstruct() != nullptr;
+        bool ctor = obj->isConstructor();
         retValue = BooleanValue(ctor).asRawBits();
         PREDICT_RETURN();
         DISPATCH_CACHEOP();
@@ -4702,6 +4697,9 @@ uint64_t ICInterpretOps(uint64_t arg0, uint64_t arg1, ICStub* stub,
         ObjOperandId objId = cacheIRReader.objOperandId();
         TypedArrayObject* tao =
             reinterpret_cast<TypedArrayObject*>(READ_REG(objId.id()));
+        if (!tao->length()) {
+          FAIL_IC();
+        }
         size_t length = *tao->length() * tao->bytesPerElement();
         if (length > size_t(INT32_MAX)) {
           FAIL_IC();
@@ -4715,6 +4713,9 @@ uint64_t ICInterpretOps(uint64_t arg0, uint64_t arg1, ICStub* stub,
         ObjOperandId objId = cacheIRReader.objOperandId();
         TypedArrayObject* tao =
             reinterpret_cast<TypedArrayObject*>(READ_REG(objId.id()));
+        if (!tao->length()) {
+          FAIL_IC();
+        }
         size_t length = *tao->length() * tao->bytesPerElement();
         retValue = DoubleValue(double(length)).asRawBits();
         PREDICT_RETURN();
